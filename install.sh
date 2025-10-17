@@ -4,8 +4,12 @@ apt update
 apt install parallel
 
 
-echo "Creating Python virtual environment..."
-python -m venv venv
+if [ -d "venv" ]; then
+    echo "Virtual environment already exists. Skipping creation."
+else
+    echo "Creating Python virtual environment..."
+    python3 -m venv venv
+fi
 source venv/bin/activate
 
 echo "Upgrading pip..."
