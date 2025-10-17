@@ -1,0 +1,24 @@
+[project]
+name = "cifar10"
+version = "0.1.0"
+description = "Optimizing a ResNet-18 model on the Cifar-10 dataset using optuna."
+requires-python = ">=3.12"
+
+dependencies = [
+    "plotly",
+    "nbformat",
+    "matplotlib",
+    "jupyterlab",
+    "ipywidgets",
+    "torch==2.7.0+cu126",
+    "torchvision==0.22.0+cu126",
+    "optuna",
+    "optuna-integration[botorch]",
+    "scikit-learn",
+    "numpy",
+    "pandas",
+]
+
+[tool.pip]
+# Use PyTorch's custom index for CUDA 12.6 builds
+extra-index-url = ["https://download.pytorch.org/whl/cu126"]
