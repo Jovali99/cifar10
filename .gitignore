@@ -1,1 +1,6 @@
 venv
+saved_models/
+__pycache__/
+.ipynb_checkpoints/
+build/
+cifar10.egg-info/
