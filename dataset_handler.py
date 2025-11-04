@@ -39,7 +39,7 @@ class TensorDataset(Dataset):
 
 def loadDataset(data_cfg):
     dataset_name = data_cfg["dataset"]
-    root = data_cfg["data_dir"]
+    root = data_cfg["root"]
 
     transform = transforms.Compose([
         transforms.ToTensor(),  # Convert PIL image to Tensor
