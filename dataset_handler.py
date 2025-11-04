@@ -1,4 +1,5 @@
 import os
+import torch
 from torchvision.datasets import CIFAR10
 from torchvision import transforms
 from torch import tensor, cat, save, load, optim, nn
@@ -30,7 +31,7 @@ class TensorDataset(Dataset):
             self.std = std
 
     def __getitem__(self, index):
-        x = (self.data[index] - self.mean) / self.std
+        x = (self.data[index] - self.mean.view(-1, 1, 1)) / self.std.view(-1, 1, 1)
         y = self.targets[index]
         return x, y
 
@@ -97,14 +98,21 @@ def processDataset(data_cfg, trainset, testset):
 
     assert len(data) == 60000, "Population dataset should contain 60000 samples"
 
-    mean = data.mean(dim=(0, 2, 3), keepdim=True)
-    std = data.std(dim=(0, 2, 3), keepdim=True)
+    mean = data.mean(dim=(0, 2, 3))
+    std = data.std(dim=(0, 2, 3))
 
     train_indices, test_indices = splitDataset(data, f_train, f_test)
 
     # --- Create normalized TensorDatasets ---
     train_dataset = TensorDataset(data[train_indices], targets[train_indices], mean, std)
     test_dataset = TensorDataset(data[test_indices], targets[test_indices], mean, std)
+
+    # --- Assertion checks ---
+    sample_x, sample_y = train_dataset[0]
+    assert sample_x.shape == (3, 32, 32), f"Unexpected sample shape: {sample_x.shape}"
+    assert not torch.isnan(sample_x).any(), "NaNs found in normalized data"
+    assert not torch.isinf(sample_x).any(), "Infs found in normalized data"
+    assert 0.0 <= sample_y < 10, f"Target out of range: {sample_y}"
 
     print(f"✅ Dataset ready | Train: {len(train_dataset)} | Test: {len(test_dataset)}")
     return train_dataset, test_dataset
