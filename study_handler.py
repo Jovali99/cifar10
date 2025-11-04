@@ -1,9 +1,14 @@
 from dataset_handler import get_dataloaders
 import torch
+import torch.nn.functional as F
+import torchvision
+import optuna
 
 # Define the datasets
 train_dataset = None
 test_dataset = None
+
+DEVICE = None
 
 def train_one_epoch(model, optimizer, train_loader, device):
     model.train()
