@@ -1,4 +1,4 @@
-from dataset_handler import get_dataloaders
+from src.dataset_handler import get_dataloaders
 import torch
 import torch.nn.functional as F
 import torchvision

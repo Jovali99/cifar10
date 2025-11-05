@@ -86,7 +86,7 @@ def saveDataset(dataset, file_path):
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, "wb") as file:
             pickle.dump(dataset, file)
-            print(f"Population dataset saved to {file_path}")
+            print(f"Dataset saved to {file_path}")
 
 def splitDataset(dataset, train_frac, test_frac):
     dataset_size = len(dataset)
@@ -102,24 +102,28 @@ def splitDataset(dataset, train_frac, test_frac):
 def processDataset(data_cfg, trainset, testset):
     print("-- Processing dataset for training --")
 
-    f_train = float(data_cfg["f_train"])
-    f_test = float(data_cfg["f_test"]) 
+    if data_cfg['default_dist']:
+        train_dataset = trainset
+        test_dataset = testset
+    else:
+        f_train = float(data_cfg["f_train"])
+        f_test = float(data_cfg["f_test"]) 
 
-    train_data, test_data, train_targets, test_targets = toTensor(trainset, testset)
+        train_data, test_data, train_targets, test_targets = toTensor(trainset, testset)
 
-    data = cat([train_data, test_data], dim=0)
-    targets = cat([train_targets, test_targets], dim=0)
+        data = cat([train_data, test_data], dim=0)
+        targets = cat([train_targets, test_targets], dim=0)
 
-    assert len(data) == 60000, "Population dataset should contain 60000 samples"
+        assert len(data) == 60000, "Population dataset should contain 60000 samples"
 
-    mean = data.mean(dim=(0, 2, 3))
-    std = data.std(dim=(0, 2, 3))
+        mean = data.mean(dim=(0, 2, 3))
+        std = data.std(dim=(0, 2, 3))
 
-    train_indices, test_indices = splitDataset(data, f_train, f_test)
+        train_indices, test_indices = splitDataset(data, f_train, f_test)
 
-    # --- Create normalized TensorDatasets ---
-    train_dataset = TensorDataset(data[train_indices], targets[train_indices], mean, std)
-    test_dataset = TensorDataset(data[test_indices], targets[test_indices], mean, std)
+        # --- Create normalized TensorDatasets ---
+        train_dataset = TensorDataset(data[train_indices], targets[train_indices], mean, std)
+        test_dataset = TensorDataset(data[test_indices], targets[test_indices], mean, std)
 
     # --- Assertion checks ---
     sample_x, sample_y = train_dataset[0]
