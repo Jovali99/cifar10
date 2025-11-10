@@ -1,0 +1,19 @@
+{
+    "additionalCfg": {},
+    "data": {
+        "augment": false,
+        "dataset": "cifar10",
+        "default_dist": false,
+        "f_test": 0.5,
+        "f_train": 0.5,
+        "root": "./data"
+    },
+    "study": {
+        "batch_size": 128,
+        "epochs": 50,
+        "optimizer": "SGD",
+        "root": "./study",
+        "study_name": "cifar10-baseline",
+        "trials": 50
+    }
+}

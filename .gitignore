@@ -5,3 +5,4 @@ __pycache__/
 build/
 cifar10.egg-info/
 data/
+iframe_figures/

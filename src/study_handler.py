@@ -48,6 +48,7 @@ def objective(trial):
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max)
 
     max_epochs = 50
+    best_val_accuracy = 0.0
     for epoch in range(max_epochs):
         train_one_epoch(model, optimizer, train_loader, DEVICE)
         scheduler.step()
@@ -55,5 +56,8 @@ def objective(trial):
         trial.report(val_accuracy, epoch)
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
+        
+        if trial.should_prune():
+            raise optuna.exceptions.TrialPruned()
 
-    return val_accuracy
+    return best_val_accuracy
