@@ -15,6 +15,17 @@ def buildAuditMetadata(trainCfg: dict, auditCfg: dict = {}, additionalCfg: dict 
     }
     return metadata
 
+def buildTargetMetadata(trainCfg: dict, dataCfg: dict, additionalCfg: dict = {}) -> dict:
+    """
+    Construct metadata describing the study configuration. 
+    """
+    metadata = {
+        "train": trainCfg,
+        "data": dataCfg,
+        "additionalCfg": additionalCfg if additionalCfg is not None else {}
+    }
+    return metadata
+
 def buildStudyMetadata(studyCfg: dict, dataCfg: dict, additionalCfg: dict = {}) -> dict:
     """
     Construct metadata describing the study configuration. 
@@ -40,7 +51,7 @@ def hashCfg(metadata:dict, inmask: np.ndarray = None) -> str:
     if inmask is not None:
         hash.update(inmask.tobytes())
 
-    return hash.hexdigest()[:16]
+    return hash.hexdigest()[:10]
 
 def saveAudit(metadata: dict, model_logits: np.ndarray, inmask: np.ndarray = None, savePath:str = "saved_models"):
     """
@@ -84,4 +95,23 @@ def saveStudy(metadata: dict, savePath:str = "study"):
         json.dump(metadata, f, indent=4, sort_keys=True)
 
     print(f"✅ Saved study journal and study metadata with hash_id: {hash_id}")
+    return hash_id, save_dir
+
+def saveTarget(metadata: dict, savePath:str = "target"):
+    """
+    Create a uniquely hashed folder for each target training based on its metadata.
+    Save metadata.json in that folder and return (hash_id, save_dir).
+    """
+    os.makedirs(savePath, exist_ok=True)
+
+    hash_id = hashCfg(metadata)
+
+    # Construct save directory
+    save_dir = os.path.join(savePath, f'{"resnet18"}-{hash_id}')
+    os.makedirs(save_dir, exist_ok=True)
+
+    with open(os.path.join(save_dir, "metadata.json"), "w") as f:
+        json.dump(metadata, f, indent=4, sort_keys=True)
+
+    print(f"✅ Saved training metadata with hash_id: {hash_id}")
     return hash_id, save_dir

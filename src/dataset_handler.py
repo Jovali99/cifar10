@@ -42,23 +42,26 @@ def loadDataset(data_cfg):
     dataset_name = data_cfg["dataset"]
     root = data_cfg["root"]
     
-    if data_cfg['default_dist']:
-        if data_cfg['augment']:
-            transform = transforms.Compose([
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-            ])
-        else:
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-            ])
-    else:   
-        transform = transforms.Compose([
-            transforms.ToTensor(),  # Convert PIL image to Tensor
-        ])
+  ##if data_cfg['default_dist']:
+  ##    if data_cfg['augment']:
+  ##        transform = transforms.Compose([
+  ##            transforms.RandomCrop(32, padding=4),
+  ##            transforms.RandomHorizontalFlip(),
+  ##            transforms.ToTensor(),
+  ##            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+  ##        ])
+  ##    else:
+  ##        transform = transforms.Compose([
+  ##            transforms.ToTensor(),
+  ##            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+  ##        ])
+  ##else:   
+  ##    transform = transforms.Compose([
+  ##        transforms.ToTensor(),  # Convert PIL image to Tensor
+  ##    ])
+    transform = transforms.Compose([
+       transforms.ToTensor(),  # Convert PIL image to Tensor
+    ])
 
     trainset, testset = None, None
     if(dataset_name == "cifar10"):
@@ -133,7 +136,7 @@ def processDataset(data_cfg, trainset, testset):
     assert 0.0 <= sample_y < 10, f"Target out of range: {sample_y}"
 
     print(f"✅ Dataset ready | Train: {len(train_dataset)} | Test: {len(test_dataset)}")
-    return train_dataset, test_dataset
+    return train_dataset, test_dataset, train_indices, test_indices
 
 # Used for optuna studies
 def get_dataloaders(batch_size, train_dataset, test_dataset):
