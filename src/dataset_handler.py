@@ -40,25 +40,8 @@ class TensorDataset(Dataset):
 
 def loadDataset(data_cfg):
     dataset_name = data_cfg["dataset"]
-    root = data_cfg["root"]
+    root = data_cfg.get("root", data_cfg.get("data_dir"))
     
-  ##if data_cfg['default_dist']:
-  ##    if data_cfg['augment']:
-  ##        transform = transforms.Compose([
-  ##            transforms.RandomCrop(32, padding=4),
-  ##            transforms.RandomHorizontalFlip(),
-  ##            transforms.ToTensor(),
-  ##            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-  ##        ])
-  ##    else:
-  ##        transform = transforms.Compose([
-  ##            transforms.ToTensor(),
-  ##            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-  ##        ])
-  ##else:   
-  ##    transform = transforms.Compose([
-  ##        transforms.ToTensor(),  # Convert PIL image to Tensor
-  ##    ])
     transform = transforms.Compose([
        transforms.ToTensor(),  # Convert PIL image to Tensor
     ])
@@ -105,28 +88,24 @@ def splitDataset(dataset, train_frac, test_frac):
 def processDataset(data_cfg, trainset, testset):
     print("-- Processing dataset for training --")
 
-    if data_cfg['default_dist']:
-        train_dataset = trainset
-        test_dataset = testset
-    else:
-        f_train = float(data_cfg["f_train"])
-        f_test = float(data_cfg["f_test"]) 
+    f_train = float(data_cfg["f_train"])
+    f_test = float(data_cfg["f_test"]) 
 
-        train_data, test_data, train_targets, test_targets = toTensor(trainset, testset)
+    train_data, test_data, train_targets, test_targets = toTensor(trainset, testset)
 
-        data = cat([train_data, test_data], dim=0)
-        targets = cat([train_targets, test_targets], dim=0)
+    data = cat([train_data, test_data], dim=0)
+    targets = cat([train_targets, test_targets], dim=0)
 
-        assert len(data) == 60000, "Population dataset should contain 60000 samples"
+    assert len(data) == 60000, "Population dataset should contain 60000 samples"
 
-        mean = data.mean(dim=(0, 2, 3))
-        std = data.std(dim=(0, 2, 3))
+    mean = data.mean(dim=(0, 2, 3))
+    std = data.std(dim=(0, 2, 3))
 
-        train_indices, test_indices = splitDataset(data, f_train, f_test)
+    train_indices, test_indices = splitDataset(data, f_train, f_test)
 
-        # --- Create normalized TensorDatasets ---
-        train_dataset = TensorDataset(data[train_indices], targets[train_indices], mean, std)
-        test_dataset = TensorDataset(data[test_indices], targets[test_indices], mean, std)
+    # --- Create normalized TensorDatasets ---
+    train_dataset = TensorDataset(data[train_indices], targets[train_indices], mean, std)
+    test_dataset = TensorDataset(data[test_indices], targets[test_indices], mean, std)
 
     # --- Assertion checks ---
     sample_x, sample_y = train_dataset[0]

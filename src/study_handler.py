@@ -57,7 +57,7 @@ def objective(trial):
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
         
-        if trial.should_prune():
-            raise optuna.exceptions.TrialPruned()
+        if best_val_accuracy < val_accuracy:
+            best_val_accuracy = val_accuracy
 
     return best_val_accuracy

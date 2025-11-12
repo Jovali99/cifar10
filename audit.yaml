@@ -1,0 +1,24 @@
+audit:  # Configurations for auditing
+  random_seed: 2345  # Integer specifying the random seed
+  attack_list:
+    - attack: lira
+      online: True
+      num_shadow_models: 256
+      training_data_fraction: 0.5
+      vectorized: True
+
+  output_dir: "./leakpro_output"
+  attack_type: "mia"
+  data_modality: "image" #image, tabular
+
+target:
+  # Target model path
+  module_path: "src/target_models.py"
+  model_class: "ResNet18" 
+  target_folder: "./target"
+  # Data paths
+  data_path: "./data/cifar10.pkl"
+
+shadow_model:
+
+distillation_model:

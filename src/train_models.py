@@ -1,4 +1,3 @@
-import save_load
 from src.cifar_handler import CifarInputHandler
 from LeakPro.leakpro import LeakPro
 from models.resnet18_model import ResNet18
@@ -8,23 +7,23 @@ from torch import save, load, optim, nn
 import os
 import pickle
 
-def trainTargetModel(train_cfg, train_loader, test_loader, train_indices, test_indices):
+def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices):
     print("-- Training model ResNet18 on cifar10  --")
     os.makedirs("target", exist_ok=True)
 
-    if(train_cfg["data"]["dataset"] == "cifar10"):
+    if(cfg["data"]["dataset"] == "cifar10"):
         num_classes = 10
     else:
-        raise ValueError(f"Incorrect dataset {train_cfg['data']['dataset']}, should be cifar10")
+        raise ValueError(f"Incorrect dataset {cfg['data']['dataset']}, should be cifar10")
 
     model = ResNet18(num_classes=num_classes)
 
     """Parse training configuration"""
-    lr = train_cfg["train"]["learning_rate"]
-    weight_decay = train_cfg["train"]["weight_decay"]
-    epochs = train_cfg["train"]["epochs"]
-    momentum = train_cfg["train"]["momentum"]
-    t_max = train_cfg["train"]["T_max"]
+    lr = cfg["train"]["learning_rate"]
+    weight_decay = cfg["train"]["weight_decay"]
+    epochs = cfg["train"]["epochs"]
+    momentum = cfg["train"]["momentum"]
+    t_max = cfg["train"]["t_max"]
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay,)
@@ -45,7 +44,7 @@ def trainTargetModel(train_cfg, train_loader, test_loader, train_indices, test_i
     test_result = CifarInputHandler().eval(test_loader, model, criterion)
 
     model.to("cpu")
-    save(model.state_dict(), os.path.join(train_cfg["run"]["log_dir"], "target_model.pkl"))
+    save(model.state_dict(), os.path.join(cfg["run"]["log_dir"], "target_model.pkl"))
     
     # Create and Save LeakPro metadata
     meta_data = LeakPro.make_mia_metadata(train_result = train_result,
@@ -56,7 +55,7 @@ def trainTargetModel(train_cfg, train_loader, test_loader, train_indices, test_i
                                       epochs = epochs,
                                       train_indices = train_indices,
                                       test_indices = test_indices,
-                                      dataset_name = train_cfg["data"]["dataset"])
+                                      dataset_name = cfg["data"]["dataset"])
     with open("target/model_metadata.pkl", "wb") as f:
         pickle.dump(meta_data, f)
 
