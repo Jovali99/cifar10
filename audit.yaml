@@ -7,7 +7,7 @@ audit:  # Configurations for auditing
       training_data_fraction: 0.5
       vectorized: True
 
-  output_dir: "./leakpro_output"
+  output_dir: "./shadow_models"
   attack_type: "mia"
   data_modality: "image" #image, tabular
 

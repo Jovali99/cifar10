@@ -7,36 +7,7 @@ from torch.utils.data import Dataset, DataLoader, Subset
 from sklearn.model_selection import train_test_split
 import pickle
 import numpy as np
-
-# --- Simple dataset wrapper for tensors ---
-class TensorDataset(Dataset):
-    def __init__(self, data, targets, mean=None, std=None):
-        """
-        Args:
-            data (Tensor): Shape (N, C, H, W), values in [0,1]
-            targets (Tensor): Shape (N,)
-        """
-        assert data.shape[0] == targets.shape[0], "Data and targets must have same length"
-        assert data.max() <= 1.0 and data.min() >= 0.0, "Data must be in [0,1]"
-
-        self.data = data
-        self.targets = targets
-
-        # Compute normalization stats if not provided
-        if mean is None or std is None:
-            self.mean = self.data.mean(dim=(0, 2, 3)).view(-1, 1, 1)
-            self.std = self.data.std(dim=(0, 2, 3)).view(-1, 1, 1)
-        else:
-            self.mean = mean
-            self.std = std
-
-    def __getitem__(self, index):
-        x = (self.data[index] - self.mean.view(-1, 1, 1)) / self.std.view(-1, 1, 1)
-        y = self.targets[index]
-        return x, y
-
-    def __len__(self):
-        return len(self.targets)
+from cifar_handler import CifarInputHandler
 
 def loadDataset(data_cfg):
     dataset_name = data_cfg["dataset"]
@@ -93,19 +64,22 @@ def processDataset(data_cfg, trainset, testset):
 
     train_data, test_data, train_targets, test_targets = toTensor(trainset, testset)
 
-    data = cat([train_data, test_data], dim=0)
+    data = cat([train_data.clone().detach(), test_data.clone().detach()], dim=0)
     targets = cat([train_targets, test_targets], dim=0)
-
     assert len(data) == 60000, "Population dataset should contain 60000 samples"
 
-    mean = data.mean(dim=(0, 2, 3))
-    std = data.std(dim=(0, 2, 3))
+    dataset = CifarInputHandler.UserDataset(data, targets)
 
-    train_indices, test_indices = splitDataset(data, f_train, f_test)
+    train_indices, test_indices = splitDataset(dataset, f_train, f_test)
 
-    # --- Create normalized TensorDatasets ---
-    train_dataset = TensorDataset(data[train_indices], targets[train_indices], mean, std)
-    test_dataset = TensorDataset(data[test_indices], targets[test_indices], mean, std)
+    # Save dataset
+    dataset_name = data_cfg["dataset"]
+    dataset_root = data_cfg.get("root", data_cfg.get("data_dir"))
+    file_path = os.path.join(dataset_root, dataset_name + ".pkl")
+    saveDataset(dataset, file_path)
+
+    train_dataset = torch.utils.data.Subset(dataset, train_indices)
+    test_dataset = torch.utils.data.Subset(dataset, test_indices)
 
     # --- Assertion checks ---
     sample_x, sample_y = train_dataset[0]
