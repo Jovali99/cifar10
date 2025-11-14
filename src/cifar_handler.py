@@ -24,8 +24,8 @@ class CifarInputHandler(AbstractInputHandler):
         model: torch.nn.Module = None,
         criterion: torch.nn.Module = None,
         optimizer: optim.Optimizer = None,
-        scheduler: torch.optim.lr_scheduler._LRScheduler = None,
-        epochs: int = None
+        epochs: int = None,
+        scheduler: torch.optim.lr_scheduler._LRScheduler = None
     ) -> TrainingOutput:
         """Model training procedure."""
 

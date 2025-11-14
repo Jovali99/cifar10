@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader, Subset
 from sklearn.model_selection import train_test_split
 import pickle
 import numpy as np
-from cifar_handler import CifarInputHandler
+from src.cifar_handler import CifarInputHandler
 
 def loadDataset(data_cfg):
     dataset_name = data_cfg["dataset"]
@@ -39,11 +39,10 @@ def toTensor(trainset, testset):
     return train_data, test_data, train_targets, test_targets
 
 def saveDataset(dataset, file_path):
-    if not os.path.exists(file_path):
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        with open(file_path, "wb") as file:
-            pickle.dump(dataset, file)
-            print(f"Dataset saved to {file_path}")
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, "wb") as file:
+        pickle.dump(dataset, file)
+        print(f"Dataset saved to {file_path}")
 
 def splitDataset(dataset, train_frac, test_frac):
     dataset_size = len(dataset)

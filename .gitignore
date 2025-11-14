@@ -7,5 +7,7 @@ cifar10.egg-info/
 data/
 iframe_figures/
 LeakPro/
+leakpro_output/
 study/
 target/
+shadow_models/
