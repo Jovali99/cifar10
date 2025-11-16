@@ -2,16 +2,16 @@ import hashlib
 import os
 import numpy as np
 import json
+from datetime import datetime
 
-def buildAuditMetadata(trainCfg: dict, auditCfg: dict = {}, additionalCfg: dict = {}) -> dict:
+def buildAuditMetadata(trainCfg: dict, auditCfg: dict = {}) -> dict:
     """
     Construct metadata describing the training configuration, hyperparameters, 
     and (optionally) audit configuration.
     """
     metadata = {
         "trainCfg": trainCfg,
-        "auditCfg": auditCfg if auditCfg is not None else {},
-        "additionalCfg": additionalCfg if additionalCfg is not None else {}
+        "auditCfg": auditCfg
     }
     return metadata
 
@@ -53,27 +53,37 @@ def hashCfg(metadata:dict, inmask: np.ndarray = None) -> str:
 
     return hash.hexdigest()[:10]
 
-def saveAudit(metadata: dict, model_logits: np.ndarray, inmask: np.ndarray = None, savePath:str = "saved_models"):
+def saveAudit(metadata: dict, target_model_logits: np.ndarray,
+              shadow_models_logits: np.ndarray, inmask: np.ndarray,
+              audit_data_indices: np.ndarray, savePath:str = "audit_signals"):
     """
-    Save model logits, inmask, and metadata into a folder named by its unique hash.
+    Save a full audit signals into a folder named by its metadata unique hash.
+        metadata: the training and audit configuration
+        target_logits: Rescaled target model logits
+        shadow_models_logits: Rescaled shadow model logits
+        inmask: in_indices_mask for the shadow models
+        audit_data_indices: indices used for audit
     """
     os.makedirs(savePath, exist_ok=True)
 
     hash_id = hashCfg(metadata, inmask)
-    # Appends 0- to the hash id as index of model, this is to be changed when
-    # shadow models are going to be trained
-    save_dir = os.path.join(savePath, "0-"+hash_id)
+
+    date_str = datetime.now().strftime("%Y%m%d")
+
+    folder_name = f"{date_str}_{hash_id}"
+
+    save_dir = os.path.join(savePath, folder_name)
     os.makedirs(save_dir, exist_ok=True)
     
-    np.save(os.path.join(save_dir, "model_logits.npy"), model_logits)
-
-    if inmask is not None:
-        np.save(os.path.join(save_dir, "inmask.npy"), inmask)
+    np.save(os.path.join(save_dir, "rescaled_target_logits.npy"), target_model_logits)
+    np.save(os.path.join(save_dir, "rescaled_shadow_model_logits.npy"), shadow_models_logits)
+    np.save(os.path.join(save_dir, "shadow_models_in_mask.npy"), inmask)
+    np.save(os.path.join(save_dir, "audit_data_indices.npy"), audit_data_indices)
 
     with open(os.path.join(save_dir, "metadata.json"), "w") as f:
         json.dump(metadata, f, indent=4, sort_keys=True)
 
-    print(f"✅ Saved model and inmask with hash_id: {hash_id}")
+    print(f"✅ Saved target and shadow models logits, inmask and audit data indices with hash_id: {hash_id}")
     return hash_id, save_dir
 
 def saveStudy(metadata: dict, savePath:str = "study"):

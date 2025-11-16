@@ -56,7 +56,11 @@ def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices
                                       train_indices = train_indices,
                                       test_indices = test_indices,
                                       dataset_name = cfg["data"]["dataset"])
-    with open("target/model_metadata.pkl", "wb") as f:
+    metadata_pkl_path = os.path.join(cfg["run"]["log_dir"], "model_metadata.pkl")
+    with open(metadata_pkl_path, "wb") as f:
         pickle.dump(meta_data, f)
 
     return train_result, test_result
+
+def trainShadowModels():
+    return True
