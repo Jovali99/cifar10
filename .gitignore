@@ -11,3 +11,4 @@ leakpro_output/
 study/
 target/
 shadow_models/
+audit_signals/
