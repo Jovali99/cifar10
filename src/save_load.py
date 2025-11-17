@@ -154,6 +154,7 @@ def loadAudit(audit_signals_name: str, save_path: str = "audit_signals"):
     target_logits_path = os.path.join(audit_dir, "rescaled_target_logits.npy")
     shadow_logits_path = os.path.join(audit_dir, "rescaled_shadow_model_logits.npy")
     inmask_path = os.path.join(audit_dir, "shadow_models_in_mask.npy")
+    target_inmask_path = os.path.join(audit_dir, "target_in_mask.npy")
     indices_path = os.path.join(audit_dir, "audit_data_indices.npy")
 
     # Load metadata
@@ -164,12 +165,13 @@ def loadAudit(audit_signals_name: str, save_path: str = "audit_signals"):
     rescaled_target_logits = np.load(target_logits_path)
     rescaled_shadow_model_logits = np.load(shadow_logits_path)
     shadow_models_in_mask = np.load(inmask_path)
+    target_in_mask = np.load(target_inmask_path)
     audit_data_indices = np.load(indices_path)
 
     print(f"📥 Loaded audit signals from folder: {audit_signals_name}")
 
     return (metadata, rescaled_target_logits, rescaled_shadow_model_logits,
-            shadow_models_in_mask, audit_data_indices)
+            shadow_models_in_mask, target_in_mask, audit_data_indices)
 
 def savePlot(fig, filename: str, audit_dir: str, savePath: str = "audit_signals", dpi: int = 300, fmt: str = "png"):
     """
