@@ -3,6 +3,7 @@ import os
 import numpy as np
 import json
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 def buildAuditMetadata(trainCfg: dict, auditCfg: dict = {}) -> dict:
     """
@@ -55,7 +56,7 @@ def hashCfg(metadata:dict, inmask: np.ndarray = None) -> str:
 
 def saveAudit(metadata: dict, target_model_logits: np.ndarray,
               shadow_models_logits: np.ndarray, inmask: np.ndarray,
-              audit_data_indices: np.ndarray, savePath:str = "audit_signals"):
+              target_inmask: np.ndarray, audit_data_indices: np.ndarray, savePath:str = "audit_signals"):
     """
     Save a full audit signals into a folder named by its metadata unique hash.
         metadata: the training and audit configuration
@@ -78,6 +79,7 @@ def saveAudit(metadata: dict, target_model_logits: np.ndarray,
     np.save(os.path.join(save_dir, "rescaled_target_logits.npy"), target_model_logits)
     np.save(os.path.join(save_dir, "rescaled_shadow_model_logits.npy"), shadow_models_logits)
     np.save(os.path.join(save_dir, "shadow_models_in_mask.npy"), inmask)
+    np.save(os.path.join(save_dir, "target_in_mask.npy"), inmask)
     np.save(os.path.join(save_dir, "audit_data_indices.npy"), audit_data_indices)
 
     with open(os.path.join(save_dir, "metadata.json"), "w") as f:
@@ -125,3 +127,72 @@ def saveTarget(metadata: dict, savePath:str = "target"):
 
     print(f"✅ Saved training metadata with hash_id: {hash_id}")
     return hash_id, save_dir
+
+def loadAudit(audit_signals_name: str, save_path: str = "audit_signals"):
+    """
+    Load audit data previously saved with saveAudit().
+    
+    audit_signals_name:
+        Folder name of the audit run (e.g. '20250110_123456789')
+    save_path:
+        Base folder where audit runs are stored.
+    
+    Returns:
+        metadata (dict)
+        rescaled_target_logits (np.ndarray)
+        rescaled_shadow_model_logits (np.ndarray)
+        shadow_models_in_mask (np.ndarray)
+        audit_data_indices (np.ndarray)
+    """
+    audit_dir = os.path.join(save_path, audit_signals_name)
+
+    if not os.path.exists(audit_dir):
+        raise FileNotFoundError(f"Audit directory not found: {audit_dir}")
+
+    # --- Load files ---
+    metadata_path = os.path.join(audit_dir, "metadata.json")
+    target_logits_path = os.path.join(audit_dir, "rescaled_target_logits.npy")
+    shadow_logits_path = os.path.join(audit_dir, "rescaled_shadow_model_logits.npy")
+    inmask_path = os.path.join(audit_dir, "shadow_models_in_mask.npy")
+    indices_path = os.path.join(audit_dir, "audit_data_indices.npy")
+
+    # Load metadata
+    with open(metadata_path, "r") as f:
+        metadata = json.load(f)
+
+    # Load numpy arrays
+    rescaled_target_logits = np.load(target_logits_path)
+    rescaled_shadow_model_logits = np.load(shadow_logits_path)
+    shadow_models_in_mask = np.load(inmask_path)
+    audit_data_indices = np.load(indices_path)
+
+    print(f"📥 Loaded audit signals from folder: {audit_signals_name}")
+
+    return (metadata, rescaled_target_logits, rescaled_shadow_model_logits,
+            shadow_models_in_mask, audit_data_indices)
+
+def savePlot(fig, filename: str, audit_dir: str, savePath: str = "audit_signals", dpi: int = 300, fmt: str = "png"):
+    """
+    Save a matplotlib figure with high-quality settings.
+    
+    Parameters:
+        fig: matplotlib.figure.Figure
+            The figure object to save.
+        audit_dir: str
+            Name of the audit_signals subdir used for the creation of the plots
+        filename: str
+            Name of the file without extension.
+        savePath: str
+            Directory where the figure is stored.
+        dpi: int
+            Resolution for the exported image.
+        fmt: str
+            File format ("png", "pdf", "svg", ...).
+    """
+    plot_path = os.path.join(audit_dir, "plot")
+    save_dir = os.path.join(savePath, plot_path)
+    os.makedirs(save_dir, exist_ok=True)
+    full_path = os.path.join(save_dir, f"{filename}.{fmt}")
+
+    fig.savefig(full_path, dpi=dpi, bbox_inches="tight")
+    print(f"📁 Saved plot to: {full_path}")
