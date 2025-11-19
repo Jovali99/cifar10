@@ -10,18 +10,18 @@ import numpy as np
 from src.cifar_handler import CifarInputHandler
 
 # Basic dataset class to handle weighted datsets
-class weightedDataset(torch.utils.Dataset):
+class weightedDataset(Dataset):
     def __init__(self, dataset, indices, weights):
         self.dataset: Dataset = dataset
         self.weights = weights
         self.indices = indices
 
-    def _size(self) -> int:
+    def __len__(self):
         return len(self.dataset)
 
-    def _getItem(self, idx):
+    def __getitem__(self, idx):
         data, label = self.dataset[idx]
-        return self.indices[idx], self.weight[idx], data, label
+        return self.indices[idx], self.weights[idx], data, label
 
 def loadDataset(data_cfg):
     dataset_name = data_cfg["dataset"]
