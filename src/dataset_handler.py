@@ -9,6 +9,20 @@ import pickle
 import numpy as np
 from src.cifar_handler import CifarInputHandler
 
+# Basic dataset class to handle weighted datsets
+class weightedDataset(torch.utils.Dataset):
+    def __init__(self, dataset, indices, weights):
+        self.dataset: Dataset = dataset
+        self.weights = weights
+        self.indices = indices
+
+    def _size(self) -> int:
+        return len(self.dataset)
+
+    def _getItem(self, idx):
+        data, label = self.dataset[idx]
+        return self.indices[idx], self.weight[idx], data, label
+
 def loadDataset(data_cfg):
     dataset_name = data_cfg["dataset"]
     root = data_cfg.get("root", data_cfg.get("data_dir"))
@@ -55,7 +69,7 @@ def splitDataset(dataset, train_frac, test_frac):
     train_idx, test_idx = train_test_split(indices, test_size=test_size, shuffle=True)
     return train_idx, test_idx
 
-def processDataset(data_cfg, trainset, testset):
+def processDataset(data_cfg, trainset, testset, in_indices_mask=None):
     print("-- Processing dataset for training --")
 
     f_train = float(data_cfg["f_train"])
@@ -69,7 +83,37 @@ def processDataset(data_cfg, trainset, testset):
 
     dataset = CifarInputHandler.UserDataset(data, targets)
 
-    train_indices, test_indices = splitDataset(dataset, f_train, f_test)
+    # ---------------------------------------------------------------------
+    # CASE 1 — Custom train indices given 
+    # ---------------------------------------------------------------------
+    if in_indices_mask is not None:
+        print("Using provided in_indices_mask for training.")
+
+        # Expected sizes (rounded)
+        expected_train = int(f_train * len(dataset))
+        expected_test = int(f_test * len(dataset))
+
+        # Convert boolean mask → integer array of indices
+        assert len(in_indices_mask) == len(dataset), \
+            f"in_indices_mask has wrong length: {len(in_indices_mask)} but dataset has {len(dataset)}"
+
+        # Ensure mask is boolean
+        assert in_indices_mask.dtype == bool or set(np.unique(in_indices_mask)).issubset({0, 1}), "in_indices_mask must be boolean or contain only 0/1"
+
+        # Extract the actual index positions
+        train_indices = np.where(in_indices_mask == 1)[0]
+
+        # Compute test indices = all remaining indices
+        all_indices = np.arange(len(dataset))
+        test_indices = np.setdiff1d(all_indices, train_indices, assume_unique=False)
+
+        assert len(train_indices) == expected_train, f"Train size mismatch: mask gives {len(train_indices)} but expected {expected_train}"
+        assert len(test_indices) == expected_test, f"Test size mismatch: mask gives {len(test_indices)} but expected {expected_test}"
+    # ---------------------------------------------------------------------
+    # CASE 2 — No custom indices
+    # ---------------------------------------------------------------------
+    else:
+        train_indices, test_indices = splitDataset(dataset, f_train, f_test)
 
     # Save dataset
     dataset_name = data_cfg["dataset"]
@@ -94,4 +138,18 @@ def processDataset(data_cfg, trainset, testset):
 def get_dataloaders(batch_size, train_dataset, test_dataset):
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    return train_loader, test_loader
+
+def get_weighted_dataloaders(batch_size, train_dataset, test_dataset, weights):
+    train_indices = train_dataset.indices
+    test_indices = test_dataset.indices
+
+    train_weights = weights[train_indices]
+    test_weights = weights[test_indices]
+
+    weighted_train = weightedDataset(train_dataset, train_indices, train_weights)
+    weighted_test = weightedDataset(test_dataset, test_indices, test_weights)
+
+    train_loader = DataLoader(weighted_train, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(weighted_test, batch_size=batch_size, shuffle=False)
     return train_loader, test_loader

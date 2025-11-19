@@ -1,5 +1,6 @@
 """Module containing the class to handle the user input for the CIFAR100 dataset."""
 
+import numpy as np
 import torch
 from torch import cuda, device, optim, no_grad
 from torch.utils.data import DataLoader
@@ -58,6 +59,78 @@ class CifarInputHandler(AbstractInputHandler):
                 train_acc += pred.eq(labels.view_as(pred)).sum().item()
                 total_samples += labels.size(0)
                 train_loss += loss.item() * labels.size(0)
+                
+            avg_train_loss = train_loss / total_samples
+            train_accuracy = train_acc / total_samples 
+            
+            accuracy_history.append(train_accuracy) 
+            loss_history.append(avg_train_loss)
+
+            # Apply the step scheduler
+            if scheduler is not None:
+                scheduler.step()
+
+            print(f"Epoch {epoch+1} completed. Train Acc: {train_accuracy:.4f}, Train Loss: {avg_train_loss:.4f}")
+
+        model.to("cpu")
+
+        results = EvalOutput(accuracy = train_accuracy,
+                             loss = avg_train_loss,
+                             extra = {"accuracy_history": accuracy_history, "loss_history": loss_history})
+        return TrainingOutput(model = model, metrics=results)
+
+    def trainFbD(
+        self,
+        dataloader: DataLoader,
+        model: torch.nn.Module = None,
+        criterion: torch.nn.Module = None,
+        optimizer: optim.Optimizer = None,
+        epochs: int|None = None,
+        noise_std: float|None = None,
+        scheduler: torch.optim.lr_scheduler._LRScheduler = None,
+    ) -> TrainingOutput:
+        """Model training procedure."""
+
+        if epochs is None:
+            raise ValueError("epochs not found in configs")
+
+        # prepare training
+        gpu_or_cpu = device("cuda" if cuda.is_available() else "cpu")
+        model.to(gpu_or_cpu)
+
+        accuracy_history = []
+        loss_history = []
+        
+        # training loop
+        for epoch in range(epochs):
+            train_loss, train_acc, total_samples = 0, 0, 0
+            model.train()
+            for org_idx, batch_weights, inputs, labels in tqdm(dataloader, desc=f"Epoch {epoch+1}/{epochs}"):
+                labels = labels.long()
+                inputs, labels, batch_weights = inputs.to(gpu_or_cpu, non_blocking=True), labels.to(gpu_or_cpu, non_blocking=True), batch_weights.to(gpu_or_cpu, non_blocking=True)
+                
+                optimizer.zero_grad()
+                outputs = model(inputs)
+
+                loss = criterion(outputs, labels)
+                # Apply weighted loss
+                weighted_loss = (loss * batch_weights).mean()
+
+                weighted_loss.backward()
+
+                # Add Gaussian noise to the gradients
+                for param in model.parameters():
+                    if param.grad is not None:
+                        noise = torch.randn_like(param.grad) * noise_std
+                        param.grad += noise
+
+                pred = outputs.argmax(dim=1) 
+                optimizer.step()
+
+                # Accumulate performance of shadow model
+                train_acc += pred.eq(labels.view_as(pred)).sum().item()
+                total_samples += labels.size(0)
+                train_loss += weighted_loss.item() * labels.size(0)
                 
             avg_train_loss = train_loss / total_samples
             train_accuracy = train_acc / total_samples 
