@@ -1,7 +1,7 @@
 from cifar_handler import CifarInputHandler
 from src.dataset_handler import get_dataloaders, get_weighted_dataloaders
 from src.models.resnet18_model import ResNet18
-from utils import sigmoid_weigths, calculate_logits
+from utils import sigmoid_weigths, calculate_logits, rescale_logits
 from torch import nn, optim
 from LeakPro.leakpro.attacks.mia_attacks.lira import lira_vectorized
 from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_vectorised
@@ -70,7 +70,7 @@ def objective(trial):
 
     return best_val_accuracy
 
-def fbd_objective(trial, norm_scores, trainset, testset, cfg, shadow_logits, shadow_inmask):
+def fbd_objective(trial, norm_scores, train_dataset, test_dataset, cfg, shadow_logits, shadow_inmask):
     """
         noise_std: Trial between [0.001, 0.1]
         Centrality: Trial stepped between [0.0, 1.0]
@@ -104,22 +104,22 @@ def fbd_objective(trial, norm_scores, trainset, testset, cfg, shadow_logits, sha
     optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay,)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max)
 
-    train_loader, test_loader = get_weighted_dataloaders(batch_size, trainset, testset, weights)
+    train_loader, test_loader = get_weighted_dataloaders(batch_size, train_dataset, test_dataset, weights)
 
-    CifarInputHandler().trainStudyFbD(train_loader, model, criterion, optimizer, epochs,
-                               noise_std, scheduler)
+    handler = CifarInputHandler();
 
-    test_accuracy = CifarInputHandler().eval(test_loader, model, criterion).accuracy
+    handler.trainStudyFbD(train_loader, model, criterion, optimizer, epochs, noise_std, scheduler)
 
-    assert trainset.dataset is testset.dataset, "trainset.dataset =/= testset.dataset"
-    full_dataset = trainset.dataset
+    test_accuracy = handler.eval(test_loader, model, criterion).accuracy
+
+    assert train_dataset.dataset is test_dataset.dataset, "train_dataset.dataset =/= test_dataset.dataset"
+    full_dataset = train_dataset.dataset
 
     model.to(DEVICE)
     target_logits = calculate_logits(model, full_dataset, DEVICE)
 
-    # TODO RESCALE LOGITS
-    rescaled_target_logits = target_logits
-    # -------------
+    labels = np.array(full_dataset.targets)
+    rescaled_target_logits = rescale_logits(target_logits, labels)
 
     if(attack == "lira"):
         scores = lira_vectorized(rescaled_target_logits,

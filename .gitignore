@@ -12,3 +12,4 @@ study/
 target/
 shadow_models/
 audit_signals/
+processed_shadow_models/

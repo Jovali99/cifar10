@@ -128,6 +128,33 @@ def saveTarget(metadata: dict, savePath:str = "target"):
     print(f"✅ Saved training metadata with hash_id: {hash_id}")
     return hash_id, save_dir
 
+def saveTargetSignals(target_model_logits: np.ndarray, in_mask: np.ndarray, path):
+    """
+    Saves the logits and in_mask of a target model
+    """
+    # Save logits
+    save_logits_path = os.path.join(path, "target_logits.npy")
+    np.save(save_logits_path, target_model_logits)
+
+    # Save in_mask
+    save_in_mask_path = os.path.join(path, f"target_in_mask.npy")
+    np.save(save_in_mask_path, in_mask)
+    print(f"✅ Saved target model logits at: {save_logits_path}, and in mask at {save_in_mask_path}")
+
+def saveShadowModelSignals(logits: np.ndarray, in_mask, identifier: int, path: str = "processed_shadow_models"):
+    """
+    Saves the logits and in_mask of a shadow model
+    """
+    # Save logits
+    save_logits_path = os.path.join(path, f"shadow_logits_{identifier}.npy")
+    np.save(save_logits_path, logits)
+    
+    # Save in_mask
+    save_in_mask_path = os.path.join(path, f"in_mask_{identifier}.npy")
+    np.save(save_in_mask_path, in_mask)
+
+    print(f"✅ Saved shadow model logits at: {save_logits_path}, and in mask at {save_in_mask_path}")
+
 def loadAudit(audit_signals_name: str, save_path: str = "audit_signals"):
     """
     Load audit data previously saved with saveAudit().

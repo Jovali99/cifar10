@@ -8,6 +8,7 @@ study: # Configuration for training
 
 fbd_study: # Configuration for training
   study_name: "cifar10-resnet-fbd"
+  audit_signals_folder: "20251117_b2919d4746"
   trials: 50
   epochs: 25 # Integer number for indicating the epochs for training target model.
   batch_size: 128 # Integer number for indicating batch size for training the target model.
@@ -17,7 +18,7 @@ fbd_study: # Configuration for training
   weight_decay: 0.0 # Float number for indicating weight decay for training the target model. For speedyresnet, it uses its own weight_decay.
   t_max: 30 # Scheduler start point for adjusting the learing rate
   attack: "lira"
-  shadow_model_amount: 4
+  shadow_model_count: 4
   root: ./study
   
 

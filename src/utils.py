@@ -2,7 +2,9 @@ from LeakPro.leakpro.attacks.mia_attacks.lira import lira_vectorized
 from sklearn.metrics import roc_curve
 from torch.utils.data import Dataset, DataLoader, Subset
 from tqdm import tqdm
+from src.save_load import saveShadowModelSignals, saveTargetSignals
 
+import os
 import numpy as np
 import torch
 
@@ -141,3 +143,52 @@ def get_shadow_signals(shadow_logits, shadow_inmask, amount):
     logits_sub = shadow_logits[:, selected_indices]
     inmask_sub = shadow_inmask[:, selected_indices]
     return logits_sub, inmask_sub
+
+def rescale_logits(logits, true_label):
+    if logits.shape[1] == 1:
+        def sigmoid(z):
+            return 1 / (1 + np.exp(-z))
+        positive_class_prob = sigmoid(logits).reshape(-1, 1)
+        predictions = np.concatenate([1 - positive_class_prob, positive_class_prob], axis=1)
+    else:
+        predictions = logits - np.max(logits, axis=1, keepdims=True)
+        predictions = np.exp(predictions)
+        predictions = predictions / np.sum(predictions, axis=1, keepdims=True)
+
+    count = predictions.shape[0]
+    y_true = predictions[np.arange(count), true_label]
+    predictions[np.arange(count), true_label] = 0
+    y_wrong = np.sum(predictions, axis=1)
+
+    output_signals = np.log(y_true + 1e-45) - np.log(y_wrong + 1e-45)
+    return output_signals
+
+def calculate_logits_and_inmask(dataset, model, metadata, path, idx: int | None = None):
+    """
+    Calculates logits and the inmask for a given model. If an index is input
+    the function assumes the model is a shadow model.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if(idx is not None):
+        print(f"\n=== Calculating logits and in_mask for shadow model {idx} ===")
+    else:
+        print(f"\n=== Calculating logits and in_mask for target model ===")
+
+    model = model.to(device)
+
+    logits = calculate_logits(model, dataset, device)
+    
+    # Create the in_mask from training indices
+    in_mask = np.zeros(len(dataset), dtype=np.bool_)
+
+    in_indices = np.array(metadata.train_indices, dtype=np.int64)
+    in_mask[in_indices] = True
+    if(idx is not None):
+        saveShadowModelSignals(logits, in_mask, idx, path)
+    else:
+        print(f"Logits shape: {logits.shape}")
+        print(f"In_mask shape: {in_mask.shape}")
+        saveTargetSignals(logits, in_mask, path)
+
+    del logits
+    del in_mask
