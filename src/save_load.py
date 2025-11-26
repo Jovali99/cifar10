@@ -155,6 +155,64 @@ def saveShadowModelSignals(logits: np.ndarray, in_mask, identifier: int, path: s
 
     print(f"✅ Saved shadow model logits at: {save_logits_path}, and in mask at {save_in_mask_path}")
 
+def loadTargetSignals(target_name: str, path: str = "target"):
+    """
+    Loads the target logits, in_mask and metadata from input path
+    """
+    target_dir = os.path.join(path, target_name)
+    target_logits_path = os.path.join(target_dir, "target_logits.npy")
+    target_inmask_path = os.path.join(target_dir, "target_in_mask.npy")
+    target_metadata_path = os.path.join(target_dir, "metadata.json")
+
+    target_logits = np.load(target_logits_path)
+    target_inmask = np.load(target_inmask_path)
+
+    # Load metadata
+    with open(target_metadata_path, "r") as f:
+        metadata = json.load(f)
+
+    print(f"✅ Target model logits, inmask and metadata loaded from: {target_dir}")
+    return target_logits, target_inmask, metadata
+
+def loadShadowModelSignals(target_name: str, path: str = "processed_shadow_models"):
+    """
+    Loads logits and in_mask arrays for all shadow models inside:
+        base_path / folder_name
+    
+    Returns:
+        shadow_logits: ndarray of shape (N, M)
+        shadow_inmasks: ndarray of shape (N, M)
+    """
+    shadow_dir = os.path.join(path, target_name)
+
+    logits_list = []
+    inmask_list = []
+
+    index = 0
+    while True:
+        logits_path = os.path.join(shadow_dir, f"shadow_logits_{index}.npy")
+        inmask_path = os.path.join(shadow_dir, f"in_mask_{index}.npy")
+
+        # Stop when no more models exist
+        if not os.path.exists(logits_path) or not os.path.exists(inmask_path):
+            break
+
+        logits_list.append(np.load(logits_path))
+        inmask_list.append(np.load(inmask_path))
+
+        index += 1
+
+    # Stack into (N, M)
+    shadow_logits_all = np.stack(logits_list, axis=1)
+    shadow_inmask_all = np.stack(inmask_list, axis=1)
+
+    print(f"✅ Loaded {index} shadow models from: {shadow_dir}")
+    print(f"➡️ Logits shape: {shadow_logits_all.shape}")
+    print(f"➡️ Inmask shape: {shadow_inmask_all.shape}")
+
+    return shadow_logits_all, shadow_inmask_all
+
+
 def loadAudit(audit_signals_name: str, save_path: str = "audit_signals"):
     """
     Load audit data previously saved with saveAudit().

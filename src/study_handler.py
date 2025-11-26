@@ -1,10 +1,10 @@
-from cifar_handler import CifarInputHandler
+from src.cifar_handler import CifarInputHandler
 from src.dataset_handler import get_dataloaders, get_weighted_dataloaders
 from src.models.resnet18_model import ResNet18
-from utils import sigmoid_weigths, calculate_logits, rescale_logits
+from src.utils import sigmoid_weigths, calculate_logits, rescale_logits
 from torch import nn, optim
 from LeakPro.leakpro.attacks.mia_attacks.lira import lira_vectorized
-from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_vectorised
+from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_vectorised, rmia_get_gtlprobs
 
 import numpy as np
 import torch
@@ -70,7 +70,7 @@ def objective(trial):
 
     return best_val_accuracy
 
-def fbd_objective(trial, norm_scores, train_dataset, test_dataset, cfg, shadow_logits, shadow_inmask):
+def fbd_objective(trial, vuln_scores, train_dataset, test_dataset, cfg, rescaled_shadow_logits, shadow_gtl_probs, shadow_inmask):
     """
         noise_std: Trial between [0.001, 0.1]
         Centrality: Trial stepped between [0.0, 1.0]
@@ -81,7 +81,7 @@ def fbd_objective(trial, norm_scores, train_dataset, test_dataset, cfg, shadow_l
     centrality = trial.suggest_float("centrality", 0.0, 1.0, step=0.1)
     temperature = trial.suggest_float("temperature", 5e-2, 5e-1)
 
-    weights = sigmoid_weigths(norm_scores, centrality, temperature)
+    weights = sigmoid_weigths(vuln_scores, centrality, temperature)
 
     lr = cfg["fbd_study"]["learning_rate"]
     weight_decay = cfg["fbd_study"]["weight_decay"]
@@ -117,20 +117,21 @@ def fbd_objective(trial, norm_scores, train_dataset, test_dataset, cfg, shadow_l
 
     model.to(DEVICE)
     target_logits = calculate_logits(model, full_dataset, DEVICE)
-
     labels = np.array(full_dataset.targets)
-    rescaled_target_logits = rescale_logits(target_logits, labels)
+
 
     if(attack == "lira"):
+        rescaled_target_logits = rescale_logits(target_logits, labels)
         scores = lira_vectorized(rescaled_target_logits,
-                                 shadow_logits,
+                                 rescaled_shadow_logits,
                                  shadow_inmask,
-                                 var_calculation="individual_carlini",
+                                 var_calculation="carlini",
                                  online=True)
     elif(attack == "rmia"):
-        scores = rmia_vectorised(rescaled_target_logits, shadow_logits, shadow_inmask, online=True)
+        target_gtl_probs = rmia_get_gtlprobs(target_logits, labels)
+        scores = rmia_vectorised(target_gtl_probs, shadow_gtl_probs, shadow_inmask, online=True, use_gpu_if_available=True)
     else:
-        raise ValueError(f"Incorrect attack parameter{cfg["fbd_study"]['attack']}")
+        raise ValueError(f"Incorrect attack parameter{cfg['fbd_study']['attack']}")
 
     # TODO calculate vulnerability
     vulnerability = np.mean(scores)
