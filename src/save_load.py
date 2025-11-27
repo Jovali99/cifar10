@@ -38,6 +38,16 @@ def buildStudyMetadata(studyCfg: dict, dataCfg: dict, additionalCfg: dict = {}) 
     }
     return metadata
 
+def buildTrialMetadata(noise, centrality, temperature, accuracy, tau):
+    metadata = {
+        "noise": noise,
+        "centrality": centrality,
+        "temperature": temperature,
+        "accuracy": accuracy,
+        "tau@0.1": tau,
+    }
+    return metadata
+
 def hashCfg(metadata:dict, inmask: np.ndarray = None) -> str:
     """
     Compute a unique SHA256 hash based on metadata and inmask.
@@ -108,6 +118,20 @@ def saveStudy(metadata: dict, savePath:str = "study"):
 
     print(f"✅ Saved study journal and study metadata with hash_id: {hash_id}")
     return hash_id, save_dir
+
+def saveTrial(metadata: dict, gtl: np.ndarray, resc_logits: np.ndarray, idx: int, path: str):
+    # Make sure the dir is created if it doesnt exist
+    save_dir = os.path.join("study", path)
+    os.makedirs(save_dir, exist_ok=True)
+
+    with open(os.path.join(path, f"metadata_{idx}.json"), "w") as f:
+        json.dump(metadata, f, indent=4, sort_keys=True)
+
+    save_resc_logits_path = os.path.join(save_dir, f"resc_logits_{idx}.npy")
+    save_gtl_path = os.path.join(save_dir, f"gtl_probabilities_{idx}.npy")
+    np.save(save_resc_logits_path, resc_logits)
+    np.save(save_gtl_path, gtl)
+    return print(f"✅ Saved trial #:{idx} logits and metadata with accuracy {metadata['accuracy']} and tau@0.1 {metadata['tau@0.1']} ")
 
 def saveTarget(metadata: dict, savePath:str = "target"):
     """

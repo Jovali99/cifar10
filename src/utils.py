@@ -192,3 +192,100 @@ def calculate_logits_and_inmask(dataset, model, metadata, path, idx: int | None 
 
     del logits
     del in_mask
+
+def calculate_roc(scores: np.ndarray, target_inmask: np.ndarray):
+    """
+    Compute the ROC curve (TPR–FPR pairs) for membership inference scores.
+
+    Parameters
+    ----------
+    scores : np.ndarray of shape (N,)
+        Attack scores for each data point. Higher values must indicate
+        a higher belief that the point is a member of the training set.
+    
+    target_inmask : np.ndarray of shape (N,)
+        Binary membership ground-truth for the target model.
+        - 1 = member (sample was included in training)
+        - 0 = non-member
+
+    Returns
+    -------
+    tpr_curve : np.ndarray of shape (N,)
+        True Positive Rate values computed at each possible threshold.
+    
+    fpr_curve : np.ndarray of shape (N,)
+        False Positive Rate values computed at each possible threshold.
+    """
+    idx = np.argsort(scores)[::-1]
+    inmask_sorted = target_inmask[idx]
+
+    tp_cum = np.cumsum(inmask_sorted == 1)
+    fp_cum = np.cumsum(inmask_sorted == 0)
+
+    positives = sum(target_inmask == 1)
+    negatives = sum(target_inmask == 0)
+
+    tpr_curve = tp_cum / positives 
+    fpr_curve = fp_cum / negatives
+    return tpr_curve, fpr_curve
+
+def calculate_tpr_at_fpr(tpr_curve, fpr_curve, fpr: float = 1.0):
+    """
+    Compute TPR at a specific FPR via linear interpolation on the ROC curve.
+
+    Parameters
+    ----------
+    tpr_curve : np.ndarray
+        TPR values from `calculate_roc`.
+    
+    fpr_curve : np.ndarray
+        FPR values from `calculate_roc`.
+    
+    fpr : float, optional (default = 1.0)
+        Target false positive rate ∈ [0, 1].
+
+    Returns
+    -------
+    tpr_at_fpr : float
+        The interpolated TPR corresponding to the given FPR target.
+    """
+    if(fpr > 1.0): fpr = 1.0
+
+    tpr_at_fpr = np.interp(fpr, fpr_curve, tpr_curve)
+    return tpr_at_fpr
+
+def calculate_tau(scores: np.ndarray, target_inmask: np.ndarray, fpr: float = 1.0):
+    """
+    Compute τ (tau), the partial area under the ROC curve (pAUC) 
+    up to a given FPR threshold.
+
+    Parameters
+    ----------
+    scores : np.ndarray of shape (N,)
+        Attack scores for each data point. Higher values must indicate
+        higher confidence that the sample is a member.
+    
+    target_inmask : np.ndarray of shape (N,)
+        Membership mask for the target model.
+        - 1 = sample was in the training set
+        - 0 = sample was not in the training set
+    
+    fpr : float, optional (default = 1.0)
+        Upper bound on the False Positive Rate ∈ [0, 1] over which the
+        partial area is computed. For example:
+            fpr=0.1 → AUC over FPR ∈ [0, 0.1].
+
+    Returns
+    -------
+    tau : float
+        The partial AUC computed as:
+        
+        τ = ∫₀^{fpr} TPR(FPR) d(FPR)
+        
+        using the trapezoidal rule.
+    """
+    tpr_curve, fpr_curve = calculate_roc(scores, target_inmask)
+    
+    mask = fpr_curve <= fpr
+    tau = np.trapz(tpr_curve[mask], fpr_curve[mask])
+    return tau

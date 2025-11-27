@@ -1,7 +1,8 @@
 from src.cifar_handler import CifarInputHandler
 from src.dataset_handler import get_dataloaders, get_weighted_dataloaders
 from src.models.resnet18_model import ResNet18
-from src.utils import sigmoid_weigths, calculate_logits, rescale_logits
+from src.utils import sigmoid_weigths, calculate_logits, rescale_logits, calculate_tau
+from src.save_load import saveTrial, buildTrialMetadata
 from torch import nn, optim
 from LeakPro.leakpro.attacks.mia_attacks.lira import lira_vectorized
 from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_vectorised, rmia_get_gtlprobs
@@ -70,18 +71,20 @@ def objective(trial):
 
     return best_val_accuracy
 
-def fbd_objective(trial, vuln_scores, train_dataset, test_dataset, cfg, rescaled_shadow_logits, shadow_gtl_probs, shadow_inmask):
+def fbd_objective(trial, rmia_scores, train_dataset, test_dataset, cfg, rescaled_shadow_logits, shadow_inmask, target_inmask):
     """
         noise_std: Trial between [0.001, 0.1]
         Centrality: Trial stepped between [0.0, 1.0]
         Temperature: Trial between [0.05, 0.5]
     """
     # study params
-    noise_std = trial.suggest_float("noise_std", 1e-3, 1e-1)
+    noise_std = trial.suggest_float("noise_std", 1e-3, 1e-1, log=True)
     centrality = trial.suggest_float("centrality", 0.0, 1.0, step=0.1)
-    temperature = trial.suggest_float("temperature", 5e-2, 5e-1)
+    temperature = trial.suggest_float("temperature", 5e-2, 5e-1, step=0.05)
 
-    weights = sigmoid_weigths(vuln_scores, centrality, temperature)
+    weights = sigmoid_weigths(rmia_scores, centrality, temperature)
+    
+    # ----------------- GÖR DETTA I TRAIN_MODELS -----------------
 
     lr = cfg["fbd_study"]["learning_rate"]
     weight_decay = cfg["fbd_study"]["weight_decay"]
@@ -112,6 +115,8 @@ def fbd_objective(trial, vuln_scores, train_dataset, test_dataset, cfg, rescaled
 
     test_accuracy = handler.eval(test_loader, model, criterion).accuracy
 
+    # ----------------- GÖR DETTA I TRAIN_MODELS -----------------
+
     assert train_dataset.dataset is test_dataset.dataset, "train_dataset.dataset =/= test_dataset.dataset"
     full_dataset = train_dataset.dataset
 
@@ -119,23 +124,24 @@ def fbd_objective(trial, vuln_scores, train_dataset, test_dataset, cfg, rescaled
     target_logits = calculate_logits(model, full_dataset, DEVICE)
     labels = np.array(full_dataset.targets)
 
+    rescaled_target_logits = rescale_logits(target_logits, labels)
+    target_gtl_probs = rmia_get_gtlprobs(target_logits, labels)
 
-    if(attack == "lira"):
-        rescaled_target_logits = rescale_logits(target_logits, labels)
-        scores = lira_vectorized(rescaled_target_logits,
-                                 rescaled_shadow_logits,
-                                 shadow_inmask,
-                                 var_calculation="carlini",
-                                 online=True)
-    elif(attack == "rmia"):
-        target_gtl_probs = rmia_get_gtlprobs(target_logits, labels)
-        scores = rmia_vectorised(target_gtl_probs, shadow_gtl_probs, shadow_inmask, online=True, use_gpu_if_available=True)
-    else:
-        raise ValueError(f"Incorrect attack parameter{cfg['fbd_study']['attack']}")
+    scores = lira_vectorized(rescaled_target_logits,
+                             rescaled_shadow_logits,
+                             shadow_inmask,
+                             var_calculation="carlini",
+                             online=True)
 
-    # TODO calculate vulnerability
-    vulnerability = np.mean(scores)
-    # ---------------
-    return test_accuracy, vulnerability
+    model.to("cpu")
+
+    tau = calculate_tau(scores, target_inmask, fpr=0.1)
+
+    metadata = buildTrialMetadata(noise_std, centrality, temperature, test_accuracy, tau)
+    saveTrial(metadata, target_gtl_probs, rescaled_target_logits, trial.number, cfg['fbg_study']['target_folder'])
+
+    # TODO Save label
+
+    return test_accuracy, tau
 
 
