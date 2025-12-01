@@ -275,6 +275,10 @@ def loadFbdStudy(study_name: str, metadata: bool = True, gtl: bool = True, logit
     """
     study_dir = os.path.join("study", study_name)
     trial_outputs_dir = os.path.join(study_dir, "trial_outputs")
+    
+    # Load labels
+    labels_dir = os.path.join(trial_outputs_dir, "labels.npy")
+    labels = np.load(labels_dir)
 
     meta_dir = os.path.join(trial_outputs_dir, "metadata")
     gtl_dir = os.path.join(trial_outputs_dir, "gtl_probabilities")
@@ -310,7 +314,7 @@ def loadFbdStudy(study_name: str, metadata: bool = True, gtl: bool = True, logit
                         noise        = meta_dict["noise"],
                         centrality   = meta_dict["centrality"],
                         temperature  = meta_dict["temperature"],
-                        tau          = meta_dict["tau"]
+                        tau          = meta_dict["tau@0.1"]
                     )
                 )
             else:
@@ -343,7 +347,7 @@ def loadFbdStudy(study_name: str, metadata: bool = True, gtl: bool = True, logit
         index += 1
 
     print(f"✅ FbD study trial outputs loaded, amount: {index}")
-    return global_metadata, fbd_trial_results, gtl_list, logits_list
+    return global_metadata, fbd_trial_results, gtl_list, logits_list, labels
 
 def loadAudit(audit_signals_name: str, save_path: str = "audit_signals"):
     """

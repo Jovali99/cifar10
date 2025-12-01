@@ -303,3 +303,14 @@ def calculate_tauc_2(fpr, tpr, f0=0.1):
 
     # Integrate using trapezoidal rule
     return np.trapz(tpr_, fpr_)
+
+def calculate_tau(scores, target_inmask, fpr=0.1):
+    """
+    Calculate τ = log(TPR@FPR/FPR)
+    """
+    tpr_curve, fpr_curve = calculate_roc(scores, target_inmask)
+    tpr = calculate_tpr_at_fpr(tpr_curve, fpr_curve, fpr)
+
+    # Regular tau
+    tau = np.log(tpr / fpr)
+    return tau
