@@ -4,8 +4,7 @@ from src.models.resnet18_model import ResNet18
 from src.utils import sigmoid_weigths, calculate_logits, rescale_logits, calculate_tauc
 from src.save_load import saveTrial, buildTrialMetadata
 from torch import nn, optim
-from LeakPro.leakpro.attacks.mia_attacks.lira import lira_vectorized
-from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_get_gtlprobs
+from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_get_gtlprobs, rmia_vectorised
 
 import numpy as np
 import torch
@@ -71,7 +70,7 @@ def objective(trial):
 
     return best_val_accuracy
 
-def fbd_objective(trial, rmia_scores, train_dataset, test_dataset, cfg, rescaled_shadow_logits, shadow_inmask, target_inmask, tauc_ref, save_path):
+def fbd_objective(trial, rmia_scores, train_dataset, test_dataset, cfg, shadow_gtl_probs, shadow_inmask, target_inmask, tauc_ref, save_path):
     """
         noise_std: Trial between [0.001, 0.1]
         Centrality: Trial stepped between [0.0, 1.0]
@@ -126,12 +125,8 @@ def fbd_objective(trial, rmia_scores, train_dataset, test_dataset, cfg, rescaled
 
     rescaled_target_logits = rescale_logits(target_logits, labels)
     target_gtl_probs = rmia_get_gtlprobs(target_logits, labels)
-
-    scores = lira_vectorized(rescaled_target_logits,
-                             rescaled_shadow_logits,
-                             shadow_inmask,
-                             var_calculation="carlini",
-                             online=True)
+    
+    scores = rmia_vectorised(target_gtl_probs, shadow_gtl_probs, shadow_inmask, online=True, use_gpu_if_available=True)
 
     model.to("cpu")
 

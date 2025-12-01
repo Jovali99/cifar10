@@ -98,7 +98,7 @@ def saveAudit(metadata: dict, target_model_logits: np.ndarray,
     print(f"✅ Saved target and shadow models logits, inmask and audit data indices with hash_id: {hash_id}")
     return hash_id, save_dir
 
-def saveStudy(metadata: dict, savePath:str = "study", target_inmask: np.ndarray = None):
+def saveStudy(metadata: dict, savePath:str = "study", labels: np.ndarray = None):
     """
     Create a uniquely hashed folder for each Optuna study based on its metadata.
     Save metadata.json in that folder and return (hash_id, save_dir).
@@ -116,12 +116,12 @@ def saveStudy(metadata: dict, savePath:str = "study", target_inmask: np.ndarray 
     with open(os.path.join(save_dir, "metadata.json"), "w") as f:
         json.dump(metadata, f, indent=4, sort_keys=True)
         
-    if target_inmask is not None:
+    if labels is not None:
         trial_outputs_dir = os.path.join(save_dir, "trial_outputs")
         os.makedirs(trial_outputs_dir, exist_ok=True)
-        # Save the weighted_target_inmask = target_inmask, for later loading simplicity
-        save_target_inmask = os.path.join(trial_outputs_dir, f"target_inmask.npy")
-        np.save(save_target_inmask, target_inmask)
+        # Save the labels
+        save_labels = os.path.join(trial_outputs_dir, f"labels.npy")
+        np.save(save_labels, labels)
 
     print(f"✅ Saved study journal and study metadata with hash_id: {hash_id}")
     return hash_id, save_dir
