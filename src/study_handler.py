@@ -1,11 +1,11 @@
 from src.cifar_handler import CifarInputHandler
 from src.dataset_handler import get_dataloaders, get_weighted_dataloaders
 from src.models.resnet18_model import ResNet18
-from src.utils import sigmoid_weigths, calculate_logits, rescale_logits, calculate_tau
+from src.utils import sigmoid_weigths, calculate_logits, rescale_logits, calculate_tauc
 from src.save_load import saveTrial, buildTrialMetadata
 from torch import nn, optim
 from LeakPro.leakpro.attacks.mia_attacks.lira import lira_vectorized
-from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_vectorised, rmia_get_gtlprobs
+from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_get_gtlprobs
 
 import numpy as np
 import torch
@@ -71,7 +71,7 @@ def objective(trial):
 
     return best_val_accuracy
 
-def fbd_objective(trial, rmia_scores, train_dataset, test_dataset, cfg, rescaled_shadow_logits, shadow_inmask, target_inmask):
+def fbd_objective(trial, rmia_scores, train_dataset, test_dataset, cfg, rescaled_shadow_logits, shadow_inmask, target_inmask, tauc_ref, save_path):
     """
         noise_std: Trial between [0.001, 0.1]
         Centrality: Trial stepped between [0.0, 1.0]
@@ -135,10 +135,11 @@ def fbd_objective(trial, rmia_scores, train_dataset, test_dataset, cfg, rescaled
 
     model.to("cpu")
 
-    tau = calculate_tau(scores, target_inmask, fpr=0.1)
+    tauc_weighted = calculate_tauc(scores, target_inmask, fpr=0.1)
+    tau = np.log(tauc_weighted/tauc_ref)
 
     metadata = buildTrialMetadata(noise_std, centrality, temperature, test_accuracy, tau)
-    saveTrial(metadata, target_gtl_probs, rescaled_target_logits, trial.number, cfg['fbg_study']['target_folder'])
+    saveTrial(metadata, target_gtl_probs, rescaled_target_logits, trial.number, target_inmask, save_path)
 
     # TODO Save label
 

@@ -254,10 +254,10 @@ def calculate_tpr_at_fpr(tpr_curve, fpr_curve, fpr: float = 1.0):
     tpr_at_fpr = np.interp(fpr, fpr_curve, tpr_curve)
     return tpr_at_fpr
 
-def calculate_tau(scores: np.ndarray, target_inmask: np.ndarray, fpr: float = 1.0):
+def calculate_tauc(scores: np.ndarray, target_inmask: np.ndarray, fpr: float = 1.0):
     """
-    Compute τ (tau), the partial area under the ROC curve (pAUC) 
-    up to a given FPR threshold.
+    Compute the Tail Area Under Curve (TAUC) for an ROC Curve up to
+    a given FPR threshold.
 
     Parameters
     ----------
@@ -277,8 +277,8 @@ def calculate_tau(scores: np.ndarray, target_inmask: np.ndarray, fpr: float = 1.
 
     Returns
     -------
-    tau : float
-        The partial AUC computed as:
+    TAUC : float
+        The partial TAUC computed as:
         
         τ = ∫₀^{fpr} TPR(FPR) d(FPR)
         
@@ -287,5 +287,19 @@ def calculate_tau(scores: np.ndarray, target_inmask: np.ndarray, fpr: float = 1.
     tpr_curve, fpr_curve = calculate_roc(scores, target_inmask)
     
     mask = fpr_curve <= fpr
-    tau = np.trapz(tpr_curve[mask], fpr_curve[mask])
-    return tau
+    tauc = np.trapz(tpr_curve[mask], fpr_curve[mask])
+    return tauc
+
+def compute_tauc(fpr, tpr, f0=0.1):
+    # Keep only the region up to f0
+    mask = fpr <= f0
+    fpr_ = fpr[mask]
+    tpr_ = tpr[mask]
+
+    # Ensure we include point exactly at f0
+    tpr_f0 = np.interp(f0, fpr, tpr)
+    fpr_ = np.append(fpr_, f0)
+    tpr_ = np.append(tpr_, tpr_f0)
+
+    # Integrate using trapezoidal rule
+    return np.trapz(tpr_, fpr_)

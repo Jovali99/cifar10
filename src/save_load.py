@@ -98,7 +98,7 @@ def saveAudit(metadata: dict, target_model_logits: np.ndarray,
     print(f"✅ Saved target and shadow models logits, inmask and audit data indices with hash_id: {hash_id}")
     return hash_id, save_dir
 
-def saveStudy(metadata: dict, savePath:str = "study"):
+def saveStudy(metadata: dict, savePath:str = "study", target_inmask: np.ndarray = None):
     """
     Create a uniquely hashed folder for each Optuna study based on its metadata.
     Save metadata.json in that folder and return (hash_id, save_dir).
@@ -115,22 +115,50 @@ def saveStudy(metadata: dict, savePath:str = "study"):
 
     with open(os.path.join(save_dir, "metadata.json"), "w") as f:
         json.dump(metadata, f, indent=4, sort_keys=True)
+        
+    if target_inmask is not None:
+        trial_outputs_dir = os.path.join(save_dir, "trial_outputs")
+        os.makedirs(trial_outputs_dir, exist_ok=True)
+        # Save the weighted_target_inmask = target_inmask, for later loading simplicity
+        save_target_inmask = os.path.join(trial_outputs_dir, f"target_inmask.npy")
+        np.save(save_target_inmask, target_inmask)
 
     print(f"✅ Saved study journal and study metadata with hash_id: {hash_id}")
     return hash_id, save_dir
 
 def saveTrial(metadata: dict, gtl: np.ndarray, resc_logits: np.ndarray, idx: int, path: str):
-    # Make sure the dir is created if it doesnt exist
-    save_dir = os.path.join("study", path)
-    os.makedirs(save_dir, exist_ok=True)
+    """Saves computed rescaled logits, gtl_probs for the weighted
+       target model along with the resulting outputs and the used parameters
 
-    with open(os.path.join(path, f"metadata_{idx}.json"), "w") as f:
+    Args:
+        metadata (dict): Metadata containing parameters and evaluation outputs
+        gtl (np.ndarray): gtl_probabilities used for rmia
+        resc_logits (np.ndarray): rescaled_logits used for lira
+        idx (int): trial index
+        path (str): study/{study_folder}/...
+
+    Returns:
+        Confirmation and results
+    """
+    # Make sure the dir is created if it doesnt exist
+    save_dir = os.path.join(path, "trial_outputs")
+    
+    # Save the metadata to trial_outputs/metadata/...
+    md_dir = os.path.join(save_dir, "metadata")
+    os.makedirs(md_dir, exist_ok=True)
+    with open(os.path.join(md_dir, f"metadata_{idx}.json"), "w") as f:
         json.dump(metadata, f, indent=4, sort_keys=True)
 
-    save_resc_logits_path = os.path.join(save_dir, f"resc_logits_{idx}.npy")
-    save_gtl_path = os.path.join(save_dir, f"gtl_probabilities_{idx}.npy")
-    np.save(save_resc_logits_path, resc_logits)
-    np.save(save_gtl_path, gtl)
+    # Save the rescaled logits to trial_outputs/rescaled_logits/...
+    resc_logits_dir = os.path.join(save_dir, "rescaled_logits")
+    os.makedirs(resc_logits_dir, exist_ok=True)
+    np.save(os.path.join(resc_logits_dir, f"rescaled_logits_{idx}.npy"), resc_logits)
+    
+    # Save the gtl probabilities to trial_outputs/gtl_probabilities/...
+    gtl_probs_dir = os.path.join(save_dir, "gtl_probabilities")
+    os.makedirs(gtl_probs_dir, exist_ok=True)
+    np.save(os.path.join(gtl_probs_dir, f"gtl_probabilities_{idx}.npy"), gtl)
+    
     return print(f"✅ Saved trial #:{idx} logits and metadata with accuracy {metadata['accuracy']} and tau@0.1 {metadata['tau@0.1']} ")
 
 def saveTarget(metadata: dict, savePath:str = "target"):
