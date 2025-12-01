@@ -71,7 +71,7 @@ def objective(trial):
 
     return best_val_accuracy
 
-def fbd_objective(trial, rmia_scores, train_dataset, test_dataset, cfg, shadow_gtl_probs, shadow_inmask, target_inmask, tauc_ref, gpu_ids, save_path):
+def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_gtl_probs, shadow_inmask, target_inmask, tauc_ref, gpu_ids, save_path):
     """
         noise_std: Trial between [0.001, 0.1]
         Centrality: Trial stepped between [0.0, 1.0]
