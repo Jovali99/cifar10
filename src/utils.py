@@ -290,7 +290,7 @@ def calculate_tauc(scores: np.ndarray, target_inmask: np.ndarray, fpr: float = 1
     tauc = np.trapz(tpr_curve[mask], fpr_curve[mask])
     return tauc
 
-def compute_tauc(fpr, tpr, f0=0.1):
+def calculate_tauc_2(fpr, tpr, f0=0.1):
     # Keep only the region up to f0
     mask = fpr <= f0
     fpr_ = fpr[mask]

@@ -24,24 +24,7 @@ import src.study_handler as sh
 from src.utils import print_yaml, get_shadow_signals, calculate_tauc
 from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_vectorised, rmia_get_gtlprobs
 from src.save_load import loadTargetSignals, loadShadowModelSignals
-
-@dataclass
-class FbdTrialResults:
-    accuracy: float
-    noise: float
-    centrality: float
-    temperature: float
-    tau: float  # tau@0.1
-
-@dataclass
-class FbdArgs:
-    rmia_scores: np.ndarray
-    train_dataset: object
-    test_dataset: object
-    shadow_gtl_probs: np.ndarray
-    shadow_inmask: np.ndarray
-    target_inmask: np.ndarray
-    tauc_ref: float
+from src.dataclasses import FbdArgs
 
 try:
     multiprocessing.set_start_method('spawn')
@@ -107,6 +90,6 @@ def parallell_optimization(config, labels, gpu_ids, fbd_args):
         
     db_path = os.path.join(study_cfg['root'], "fbd_study.db")
     storage = f"sqlite:///{db_path}"
-    study_name = f"{study_cfg["study_name"]}-{hash_id}"
+    study_name = f"{study_cfg['study_name']}-{hash_id}"
     study = optuna.load_study(study_name=study_name, storage=storage)
     return study

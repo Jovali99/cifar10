@@ -4,7 +4,7 @@ import numpy as np
 import json
 from datetime import datetime
 import matplotlib.pyplot as plt
-from src.optimize_fbd_model import FbdTrialResults
+from src.dataclasses import FbdTrialResults
 
 def buildAuditMetadata(trainCfg: dict, auditCfg: dict = {}) -> dict:
     """
