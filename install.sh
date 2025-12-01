@@ -2,7 +2,7 @@
 echo -e "Updating system packages..."
 apt update
 apt install parallel
-
+apt install sqlite3 libsqlite3-dev
 
 if [ -d "venv" ]; then
     echo -e "Virtual environment already exists. Skipping creation."
