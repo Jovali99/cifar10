@@ -136,6 +136,6 @@ def fbd_objective(trial, rmia_scores, train_dataset, test_dataset, cfg, shadow_g
     metadata = buildTrialMetadata(noise_std, centrality, temperature, test_accuracy, tau)
     saveTrial(metadata, target_gtl_probs, rescaled_target_logits, trial.number, save_path)
 
-    return test_accuracy, tau
+    return tau, test_accuracy
 
 
