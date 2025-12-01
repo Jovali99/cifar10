@@ -4,6 +4,7 @@ import numpy as np
 import json
 from datetime import datetime
 import matplotlib.pyplot as plt
+from src.optimize_fbd_model import FbdTrialResults
 
 def buildAuditMetadata(trainCfg: dict, auditCfg: dict = {}) -> dict:
     """
@@ -264,6 +265,85 @@ def loadShadowModelSignals(target_name: str, path: str = "processed_shadow_model
 
     return shadow_logits_all, shadow_inmask_all
 
+def loadFbdStudy(study_name: str, metadata: bool = True, gtl: bool = True, logits: bool = True):
+    """
+    Load FBD study output files from the study/<study_name>/trial_outputs directory.
+    Files must follow the indexed naming scheme:
+      metadata/metadata_{i}.json
+      gtl_probabilities/gtl_probabilities_{i}.npy
+      rescaled_logits/rescaled_logits_{i}.npy
+    """
+    study_dir = os.path.join("study", study_name)
+    trial_outputs_dir = os.path.join(study_dir, "trial_outputs")
+
+    meta_dir = os.path.join(trial_outputs_dir, "metadata")
+    gtl_dir = os.path.join(trial_outputs_dir, "gtl_probabilities")
+    logits_dir = os.path.join(trial_outputs_dir, "rescaled_logits")
+    
+    global_metadata_path = os.path.join(study_dir, "metadata.json")
+    if os.path.isfile(global_metadata_path):
+        with open(global_metadata_path, "r") as f:
+            global_metadata = json.load(f)
+    else:
+        global_metadata = None
+
+    fbd_trial_results = []
+    gtl_list = []
+    logits_list = []
+    
+    index = 0
+
+    while True:
+        loaded_any = False  # Detect if this index has any valid file
+        # --- Metadata ---
+        if metadata:
+            meta_path = os.path.join(meta_dir, f"metadata_{index}.json")
+            if os.path.isfile(meta_path):
+                loaded_any = True
+                with open(meta_path, "r") as f:
+                    meta_dict = json.load(f)
+                
+                # Convert into dataclass
+                fbd_trial_results.append(
+                    FbdTrialResults(
+                        accuracy     = meta_dict["accuracy"],
+                        noise        = meta_dict["noise"],
+                        centrality   = meta_dict["centrality"],
+                        temperature  = meta_dict["temperature"],
+                        tau          = meta_dict["tau"]
+                    )
+                )
+            else:
+                if index > 0:
+                    break
+        # --- GTL probabilities ---
+        if gtl:
+            gtl_path = os.path.join(gtl_dir, f"gtl_probabilities_{index}.npy")
+            if os.path.isfile(gtl_path):
+                loaded_any = True
+                gtl_list.append(np.load(gtl_path))
+            elif os.path.isdir(gtl_dir) and index == 0:
+                pass
+            elif os.path.isdir(gtl_dir):
+                break
+        # --- Rescaled logits ---
+        if logits:
+            logits_path = os.path.join(logits_dir, f"rescaled_logits_{index}.npy")
+            if os.path.isfile(logits_path):
+                loaded_any = True
+                logits_list.append(np.load(logits_path))
+            elif os.path.isdir(logits_dir) and index == 0:
+                pass
+            elif os.path.isdir(logits_dir):
+                break
+
+        if not loaded_any:
+            break  # No files found for this index → finished
+
+        index += 1
+
+    print(f"✅ FbD study trial outputs loaded, amount: {index}")
+    return global_metadata, fbd_trial_results, gtl_list, logits_list
 
 def loadAudit(audit_signals_name: str, save_path: str = "audit_signals"):
     """

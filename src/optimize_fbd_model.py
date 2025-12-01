@@ -26,6 +26,14 @@ from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_vectorised, rmia_get_g
 from src.save_load import loadTargetSignals, loadShadowModelSignals
 
 @dataclass
+class FbdTrialResults:
+    accuracy: float
+    noise: float
+    centrality: float
+    temperature: float
+    tau: float  # tau@0.1
+
+@dataclass
 class FbdArgs:
     rmia_scores: np.ndarray
     train_dataset: object
@@ -99,5 +107,6 @@ def parallell_optimization(config, labels, gpu_ids, fbd_args):
         
     db_path = os.path.join(study_cfg['root'], "fbd_study.db")
     storage = f"sqlite:///{db_path}"
-    study = optuna.load_study(study_name=study_cfg["study_name"], storage=storage)
+    study_name = f"{study_cfg["study_name"]}-{hash_id}"
+    study = optuna.load_study(study_name=study_name, storage=storage)
     return study
