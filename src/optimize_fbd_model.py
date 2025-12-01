@@ -35,7 +35,10 @@ class FbdArgs:
     target_inmask: np.ndarray
     tauc_ref: float
 
-multiprocessing.set_start_method('spawn')
+try:
+    multiprocessing.set_start_method('spawn')
+except RuntimeError:
+    pass
 
 def run_optimization(config, gpu_id, trials, save_path, hash_id, fbd_args: FbdArgs): 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
