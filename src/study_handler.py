@@ -71,7 +71,7 @@ def objective(trial):
 
     return best_val_accuracy
 
-def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_gtl_probs, shadow_inmask, target_inmask, tauc_ref, gpu_ids, save_path):
+def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_gtl_probs, shadow_inmask, target_inmask, tauc_ref, save_path, device):
     """
         noise_std: Trial between [0.001, 0.1]
         Centrality: Trial stepped between [0.0, 1.0]
@@ -82,9 +82,8 @@ def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_g
     centrality = trial.suggest_float("centrality", 0.0, 1.0, step=0.1)
     temperature = trial.suggest_float("temperature", 5e-2, 5e-1, step=0.05)
 
+    # Calculate the weights
     weights = sigmoid_weigths(rmia_scores, centrality, temperature)
-    
-    # ----------------- GÖR DETTA I TRAIN_MODELS -----------------
 
     lr = cfg["fbd_study"]["learning_rate"]
     weight_decay = cfg["fbd_study"]["weight_decay"]
@@ -92,7 +91,6 @@ def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_g
     momentum = cfg["fbd_study"]["momentum"]
     t_max = cfg["fbd_study"]["t_max"]
     batch_size = cfg["fbd_study"]["batch_size"]
-    attack = cfg["fbd_study"]["attack"]
 
     if(cfg["data"]["dataset"] == "cifar10" or cfg["data"]["dataset"] == "cinic10"):
         num_classes = 10
@@ -110,9 +108,7 @@ def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_g
     train_loader, test_loader = get_weighted_dataloaders(batch_size, train_dataset, test_dataset, weights)
 
     handler = CifarInputHandler();
-
     handler.trainStudyFbD(train_loader, model, criterion, optimizer, epochs, noise_std, scheduler)
-
     test_accuracy = handler.eval(test_loader, model, criterion).accuracy
 
     # ----------------- GÖR DETTA I TRAIN_MODELS -----------------
@@ -120,8 +116,8 @@ def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_g
     assert train_dataset.dataset is test_dataset.dataset, "train_dataset.dataset =/= test_dataset.dataset"
     full_dataset = train_dataset.dataset
 
-    model.to(DEVICE)
-    target_logits = calculate_logits(model, full_dataset, DEVICE)
+    model.to(device)
+    target_logits = calculate_logits(model, full_dataset, device)
     labels = np.array(full_dataset.targets)
 
     rescaled_target_logits = rescale_logits(target_logits, labels)

@@ -37,8 +37,11 @@ class FbdArgs:
 
 multiprocessing.set_start_method('spawn')
 
-def run_optimization(config, gpu_id, trials, save_path, fbd_args: FbdArgs): 
+def run_optimization(config, gpu_id, trials, save_path, hash_id, fbd_args: FbdArgs): 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
     
     study_cfg = config['fbd_study']
 
@@ -47,7 +50,7 @@ def run_optimization(config, gpu_id, trials, save_path, fbd_args: FbdArgs):
     storage = f"sqlite:///{db_path}"
     
     study = optuna.create_study(
-        study_name=study_cfg["study_name"],
+        study_name=f"{study_cfg['study_name']}-{hash_id}",
         storage=storage,
         load_if_exists=True,
         directions=["minimize", "maximize"]
@@ -63,7 +66,7 @@ def run_optimization(config, gpu_id, trials, save_path, fbd_args: FbdArgs):
     
     func = lambda trial: sh.fbd_objective(trial, config, rmia_scores, train_dataset, 
                                           test_dataset, shadow_gtl_probs, shadow_inmask, 
-                                          target_inmask, tauc_ref, gpu_id, save_path)
+                                          target_inmask, tauc_ref, save_path, device)
     
     study.optimize(func, n_trials=trials)
     
@@ -76,14 +79,14 @@ def parallell_optimization(config, labels, gpu_ids, fbd_args):
     study_cfg = config['fbd_study'] 
 
     metadata = sl.buildStudyMetadata(study_cfg, config['data']) 
-    _, save_path = sl.saveStudy(metadata, savePath=study_cfg['root'], labels=labels) 
+    hash_id, save_path = sl.saveStudy(metadata, savePath=study_cfg['root'], labels=labels) 
 
     assert study_cfg["trials"] % len(gpu_ids) == 0, f"amount of trials {study_cfg['trials']} cannot be equally split among {len(gpu_ids)}"
     trials = study_cfg["trials"] // len(gpu_ids)
     
     processes = [multiprocessing.Process(
         target=run_optimization, 
-        args=(config, gpu_id, trials, save_path, fbd_args)
+        args=(config, gpu_id, trials, save_path, hash_id, fbd_args)
     ) for gpu_id in gpu_ids] 
     
     for p in processes:
