@@ -73,15 +73,24 @@ def parallell_optimization(config, labels, gpu_ids, fbd_args):
     study_cfg = config['fbd_study'] 
 
     metadata = sl.buildStudyMetadata(study_cfg, config['data']) 
-    hash_id, save_path = sl.saveStudy(metadata, savePath=study_cfg['root'], labels=labels) 
-
-    assert study_cfg["trials"] % len(gpu_ids) == 0, f"amount of trials {study_cfg['trials']} cannot be equally split among {len(gpu_ids)}"
-    trials = study_cfg["trials"] // len(gpu_ids)
+    hash_id, save_path = sl.saveStudy(metadata, savePath=study_cfg['root'], labels=labels)
     
-    processes = [multiprocessing.Process(
-        target=run_optimization, 
-        args=(config, gpu_id, trials, save_path, hash_id, fbd_args)
-    ) for gpu_id in gpu_ids] 
+    # split up the trials among the gpus
+    total_trials = study_cfg["trials"]
+    n_gpus = len(gpu_ids)
+    base_trials, remainder = divmod(total_trials, n_gpus)
+    
+    # assign trials per GPU
+    trials_per_gpu = [base_trials + 1 if i < remainder else base_trials for i in range(n_gpus)]
+
+    processes = []
+    for gpu_id, trials in zip(gpu_ids, trials_per_gpu):
+        print("Running {trials} on gpu: {gpu_id}")
+        p = multiprocessing.Process(
+            target=run_optimization,
+            args=(config, gpu_id, trials, save_path, hash_id, fbd_args)
+        )
+        processes.append(p)
     
     for p in processes:
         p.start() 
