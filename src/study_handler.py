@@ -1,6 +1,7 @@
 from src.cifar_handler import CifarInputHandler
 from src.dataset_handler import get_dataloaders, get_weighted_dataloaders
 from src.models.resnet18_model import ResNet18
+from src.models.wideresnet28_model import WideResNet
 from src.utils import sigmoid_weigths, calculate_logits, rescale_logits, calculate_tauc
 from src.save_load import saveTrial, buildTrialMetadata
 from torch import nn, optim
@@ -42,7 +43,7 @@ def evaluate(model, val_loader, device):
             correct += predicted.eq(target).sum().item()
     return correct / total
 
-def objective(trial):
+def objective(trial, config):
     # Hyperparameters
     lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
     momentum = trial.suggest_float("momentum", 0.8, 0.99)
@@ -52,7 +53,19 @@ def objective(trial):
 
     train_loader, val_loader = get_dataloaders(batch_size, train_dataset, test_dataset)
 
-    model = torchvision.models.resnet18(num_classes=10).to(DEVICE)
+    if config["data"]["dataset"] == "cifar10" or config["data"]["dataset"] == "cinic10":
+        n_classes = 10
+    elif config["data"]["dataset"] == "cifar100":
+        n_classes = 100
+    else:
+        raise ValueError(f"Incorrect dataset {config['data']['dataset']}")
+
+    if config["study"]["model"] == "resnet":
+        model = torchvision.models.resnet18(num_classes=n_classes).to(DEVICE)
+    elif config["study"]["model"] == "wideresnet":
+        drop_rate = trial.suggest_float("drop_rate", 0.0, 0.5)
+        model = WideResNet(depth=28, num_classes=n_classes, widen_factor=10, dropRate=drop_rate).to(DEVICE)
+        
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max)
 
