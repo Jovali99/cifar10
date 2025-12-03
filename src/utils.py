@@ -193,7 +193,7 @@ def calculate_logits_and_inmask(dataset, model, metadata, path, idx: int | None 
     del logits
     del in_mask
 
-def calculate_roc(scores: np.ndarray, target_inmask: np.ndarray):
+def calculate_roc(scores: np.ndarray, target_inmask: np.ndarray, clip: bool = False, eps: float = 1e-6):
     """
     Compute the ROC curve (TPR–FPR pairs) for membership inference scores.
 
@@ -227,6 +227,10 @@ def calculate_roc(scores: np.ndarray, target_inmask: np.ndarray):
 
     tpr_curve = tp_cum / positives 
     fpr_curve = fp_cum / negatives
+    if clip:
+        fpr_curve = np.clip(fpr_curve, eps, 1.0)
+        tpr_curve = np.clip(tpr_curve, eps, 1.0)
+        
     return tpr_curve, fpr_curve
 
 def calculate_tpr_at_fpr(tpr_curve, fpr_curve, fpr: float = 1.0):
@@ -315,27 +319,43 @@ def calculate_tau(scores, target_inmask, fpr=0.1):
     tau = np.log(tpr / fpr)
     return tau
 
-def pick_weighted_models(accuracy, taus, thresholds, margin=2.0):
+def pick_weighted_models(accuracy, taus_rmia, taus_lira, thresholds, margin=2.0):
     accuracy = np.array(accuracy)
-    taus = np.array(taus)
+    taus_rmia = np.array(taus_rmia)
+    taus_lira = np.array(taus_lira)
 
-    all_threshold_indices = []
-    selected_best_indices = []
+    all_threshold_indices = []       # all indices matching acc range
+    selected_best_indices = []       # final chosen index for each threshold
 
     for thr in thresholds:
-        # Accuracy window: thr <= acc <= thr + margin
+
+        # Acc in [thr, thr + margin]
         mask = (accuracy >= thr) & (accuracy <= thr + margin)
         idxs = np.where(mask)[0].tolist()
 
         all_threshold_indices.append(idxs)
 
-        # If no models found for this threshold, append None
         if len(idxs) == 0:
             selected_best_indices.append(None)
             continue
 
-        # Pick the least-vulnerable → minimum tau
-        best_idx = idxs[np.argmin(taus[idxs])]
+        # --- NEW PART: ensure RMIA & LIRA both have tau values for the same idxs ---
+        candidate_idxs = []
+
+        for i in idxs:
+            # must have valid RMIA and LIRA taus
+            if not np.isnan(taus_rmia[i]) and not np.isnan(taus_lira[i]):
+                candidate_idxs.append(i)
+
+        if len(candidate_idxs) == 0:
+            selected_best_indices.append(None)
+            continue
+
+        # Combine vulnerabilities (lower = more robust)
+        combined_tau = taus_rmia[candidate_idxs] + taus_lira[candidate_idxs]
+
+        # Select lowest combined vulnerability
+        best_idx = candidate_idxs[np.argmin(combined_tau)]
         selected_best_indices.append(best_idx)
 
     return all_threshold_indices, selected_best_indices
