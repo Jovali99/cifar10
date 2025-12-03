@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 import matplotlib.pyplot as plt
 from src.dataclasses import FbdTrialResults
+import pickle
 
 def buildAuditMetadata(trainCfg: dict, auditCfg: dict = {}) -> dict:
     """
@@ -216,6 +217,7 @@ def loadTargetSignals(target_name: str, path: str = "target"):
     target_logits_path = os.path.join(target_dir, "target_logits.npy")
     target_inmask_path = os.path.join(target_dir, "target_in_mask.npy")
     target_metadata_path = os.path.join(target_dir, "metadata.json")
+    model_metadata_pkl_path = os.path.join(target_dir, "model_metadata.pkl")
 
     target_logits = np.load(target_logits_path)
     target_inmask = np.load(target_inmask_path)
@@ -223,9 +225,12 @@ def loadTargetSignals(target_name: str, path: str = "target"):
     # Load metadata
     with open(target_metadata_path, "r") as f:
         metadata = json.load(f)
+        
+    with open(model_metadata_pkl_path, "rb") as f:
+        metadata_pkl = pickle.load(f)
 
     print(f"✅ Target model logits, inmask and metadata loaded from: {target_dir}")
-    return target_logits, target_inmask, metadata
+    return target_logits, target_inmask, metadata, metadata_pkl
 
 def loadShadowModelSignals(target_name: str, path: str = "processed_shadow_models"):
     """
@@ -419,3 +424,52 @@ def savePlot(fig, filename: str, audit_dir: str, savePath: str = "audit_signals"
 
     fig.savefig(full_path, dpi=dpi, bbox_inches="tight")
     print(f"📁 Saved plot to: {full_path}")
+
+def compute_bootstrap_ci(x, y, bins=50, n_bootstrap=2000, ci=0.95):
+    x = np.array(x)
+    y = np.array(y)
+
+    # Compute bin edges
+    bin_edges = np.linspace(np.min(x), np.max(x), bins + 1)
+    bin_idx = np.digitize(x, bin_edges) - 1
+
+    x_means = []
+    y_means = []
+    y_low_ci = []
+    y_high_ci = []
+
+    alpha = (1 - ci) / 2
+
+    for i in range(bins):
+        mask = bin_idx == i
+        y_bin = y[mask]
+
+        if len(y_bin) < 5:
+            continue
+
+        # point estimate
+        y_means.append(np.mean(y_bin))
+        x_means.append(np.mean(x[mask]))
+
+        # bootstrapping
+        boot_means = []
+        for _ in range(n_bootstrap):
+            sample = np.random.choice(y_bin, size=len(y_bin), replace=True)
+            boot_means.append(sample.mean())
+        boot_means = np.array(boot_means)
+
+        y_low_ci.append(np.percentile(boot_means, 100 * alpha))
+        y_high_ci.append(np.percentile(boot_means, 100 * (1 - alpha)))
+
+    return (
+        np.array(x_means),
+        np.array(y_means),
+        np.array(y_low_ci),
+        np.array(y_high_ci)
+    )
+
+def plot_bootstrap_band(ax, x, y, label, color):
+    xm, ym, ylow, yhigh = compute_bootstrap_ci(x, y, bins=50)
+
+    ax.plot(xm, ym, color=color, label=label)
+    ax.fill_between(xm, ylow, yhigh, color=color, alpha=0.2)

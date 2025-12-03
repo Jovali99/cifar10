@@ -314,3 +314,108 @@ def calculate_tau(scores, target_inmask, fpr=0.1):
     # Regular tau
     tau = np.log(tpr / fpr)
     return tau
+
+def pick_weighted_models(accuracy, taus, thresholds, margin=2.0):
+    accuracy = np.array(accuracy)
+    taus = np.array(taus)
+
+    all_threshold_indices = []
+    selected_best_indices = []
+
+    for thr in thresholds:
+        # Accuracy window: thr <= acc <= thr + margin
+        mask = (accuracy >= thr) & (accuracy <= thr + margin)
+        idxs = np.where(mask)[0].tolist()
+
+        all_threshold_indices.append(idxs)
+
+        # If no models found for this threshold, append None
+        if len(idxs) == 0:
+            selected_best_indices.append(None)
+            continue
+
+        # Pick the least-vulnerable → minimum tau
+        best_idx = idxs[np.argmin(taus[idxs])]
+        selected_best_indices.append(best_idx)
+
+    return all_threshold_indices, selected_best_indices
+
+def compute_smooth_curve(x, y, bins=50):
+    x = np.array(x)
+    y = np.array(y)
+
+    # Compute bin edges
+    bin_edges = np.linspace(np.min(x), np.max(x), bins + 1)
+
+    # Digitize
+    bin_idx = np.digitize(x, bin_edges) - 1
+
+    # Compute statistics
+    x_means = []
+    y_means = []
+    y_stds = []
+
+    for i in range(bins):
+        mask = bin_idx == i
+        if np.sum(mask) < 5:    # skip very small bins
+            continue
+        x_means.append(x[mask].mean())
+        y_means.append(y[mask].mean())
+        y_stds.append(y[mask].std())
+
+    return np.array(x_means), np.array(y_means), np.array(y_stds)
+
+def plot_with_band(ax, x, y, label, color):
+    xm, ym, ys = compute_smooth_curve(x, y, bins=50)
+    
+    ax.plot(xm, ym, color=color, label=label)
+    ax.fill_between(xm, ym - ys, ym + ys, color=color, alpha=0.2)
+    
+def compute_bootstrap_ci(x, y, bins=50, n_bootstrap=2000, ci=0.95):
+    x = np.array(x)
+    y = np.array(y)
+
+    # Compute bin edges
+    bin_edges = np.linspace(np.min(x), np.max(x), bins + 1)
+    bin_idx = np.digitize(x, bin_edges) - 1
+
+    x_means = []
+    y_means = []
+    y_low_ci = []
+    y_high_ci = []
+
+    alpha = (1 - ci) / 2
+
+    for i in range(bins):
+        mask = bin_idx == i
+        y_bin = y[mask]
+
+        if len(y_bin) < 5:
+            continue
+
+        # point estimate
+        y_means.append(np.mean(y_bin))
+        x_means.append(np.mean(x[mask]))
+
+        # bootstrapping
+        boot_means = []
+        for _ in range(n_bootstrap):
+            sample = np.random.choice(y_bin, size=len(y_bin), replace=True)
+            boot_means.append(sample.mean())
+        boot_means = np.array(boot_means)
+
+        y_low_ci.append(np.percentile(boot_means, 100 * alpha))
+        y_high_ci.append(np.percentile(boot_means, 100 * (1 - alpha)))
+
+    return (
+        np.array(x_means),
+        np.array(y_means),
+        np.array(y_low_ci),
+        np.array(y_high_ci)
+    )
+
+def plot_bootstrap_band(ax, x, y, label, color):
+    xm, ym, ylow, yhigh = compute_bootstrap_ci(x, y, bins=50)
+
+    ax.plot(xm, ym, color=color, label=label)
+    ax.fill_between(xm, ylow, yhigh, color=color, alpha=0.2)
