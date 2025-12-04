@@ -3,9 +3,10 @@ from src.dataset_handler import get_dataloaders, get_weighted_dataloaders
 from src.models.resnet18_model import ResNet18
 from src.models.wideresnet28_model import WideResNet
 from src.utils import sigmoid_weigths, calculate_logits, rescale_logits, calculate_tauc
-from src.save_load import saveTrial, buildTrialMetadata
+from src.save_load import saveTrial, buildTrialMetadata, buildStudyMetadata, saveStudy
 from torch import nn, optim
 from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_get_gtlprobs, rmia_vectorised
+from tqdm import tqdm
 
 import numpy as np
 import torch
@@ -20,9 +21,9 @@ test_dataset = None
 
 DEVICE = None
 
-def train_one_epoch(model, optimizer, train_loader, device):
+def train_one_epoch(model, optimizer, train_loader, device, epoch, epochs):
     model.train()
-    for data, target in train_loader:
+    for data, target in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}"):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
@@ -48,7 +49,7 @@ def objective(trial, config):
     lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
     momentum = trial.suggest_float("momentum", 0.8, 0.99)
     weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
-    batch_size = trial.suggest_categorical("batch_size", [32, 64, 128, 256])
+    batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
     T_max = trial.suggest_int("T_max", 20, 50)
 
     train_loader, val_loader = get_dataloaders(batch_size, train_dataset, test_dataset)
@@ -62,9 +63,11 @@ def objective(trial, config):
 
     if config["study"]["model"] == "resnet":
         model = torchvision.models.resnet18(num_classes=n_classes).to(DEVICE)
+        print("Optimizing resnet")
     elif config["study"]["model"] == "wideresnet":
         drop_rate = trial.suggest_float("drop_rate", 0.0, 0.5)
         model = WideResNet(depth=28, num_classes=n_classes, widen_factor=10, dropRate=drop_rate).to(DEVICE)
+        print("Optimizing wideresnet")
         
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max)
@@ -72,9 +75,10 @@ def objective(trial, config):
     max_epochs = 50
     best_val_accuracy = 0.0
     for epoch in range(max_epochs):
-        train_one_epoch(model, optimizer, train_loader, DEVICE)
+        train_one_epoch(model, optimizer, train_loader, DEVICE, epoch, max_epochs)
         scheduler.step()
         val_accuracy = evaluate(model, val_loader, DEVICE)
+        print(f"Trial val accuracy: {val_accuracy}")
         trial.report(val_accuracy, epoch)
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
@@ -83,6 +87,36 @@ def objective(trial, config):
             best_val_accuracy = val_accuracy
 
     return best_val_accuracy
+
+def run_baseline_optimization(config, gpu_id, trials, save_path, hash_id):
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    
+    study_cfg = config['study']
+
+    # Parallell storage setup
+    db_path = os.path.join(study_cfg['root'], "baseline_study.db")
+    storage = f"sqlite:///{db_path}"
+    
+    study = optuna.create_study(
+        study_name=f"{study_cfg['study_name']}-{hash_id}",
+        storage=storage,
+        load_if_exists=True,
+        direction="maximize"
+    )
+    func = lambda trial: objective(trial, config)
+    
+    study.optimize(func, n_trials=trials)
+    
+    print(f"Study '{study_cfg['study_name']}' completed on GPU {gpu_id}. Best value: {study.best_value}, params: {study.best_params}")
+    df = study.trials_dataframe() 
+    df.to_csv(os.path.join(save_path, f"results_gpu_{gpu_id}.csv"), index=False) 
+    print(f"📄 Results saved to {os.path.join(save_path, f'results_gpu_{gpu_id}.csv')}")
+
+    return study
+
 
 def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_gtl_probs, shadow_inmask, target_inmask, tauc_ref, save_path, device):
     """
