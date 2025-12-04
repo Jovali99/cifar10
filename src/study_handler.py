@@ -19,8 +19,6 @@ import os
 train_dataset = None
 test_dataset = None
 
-DEVICE = None
-
 def train_one_epoch(model, optimizer, train_loader, device, epoch, epochs):
     model.train()
     for data, target in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}"):
@@ -44,7 +42,7 @@ def evaluate(model, val_loader, device):
             correct += predicted.eq(target).sum().item()
     return correct / total
 
-def objective(trial, config):
+def objective(trial, config, device):
     # Hyperparameters
     lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
     momentum = trial.suggest_float("momentum", 0.8, 0.99)
@@ -62,11 +60,11 @@ def objective(trial, config):
         raise ValueError(f"Incorrect dataset {config['data']['dataset']}")
 
     if config["study"]["model"] == "resnet":
-        model = torchvision.models.resnet18(num_classes=n_classes).to(DEVICE)
+        model = torchvision.models.resnet18(num_classes=n_classes).to(device)
         print("Optimizing resnet")
     elif config["study"]["model"] == "wideresnet":
         drop_rate = trial.suggest_float("drop_rate", 0.0, 0.5)
-        model = WideResNet(depth=28, num_classes=n_classes, widen_factor=10, dropRate=drop_rate).to(DEVICE)
+        model = WideResNet(depth=28, num_classes=n_classes, widen_factor=10, dropRate=drop_rate).to(device)
         print("Optimizing wideresnet")
         
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
@@ -75,9 +73,9 @@ def objective(trial, config):
     max_epochs = 50
     best_val_accuracy = 0.0
     for epoch in range(max_epochs):
-        train_one_epoch(model, optimizer, train_loader, DEVICE, epoch, max_epochs)
+        train_one_epoch(model, optimizer, train_loader, device, epoch, max_epochs)
         scheduler.step()
-        val_accuracy = evaluate(model, val_loader, DEVICE)
+        val_accuracy = evaluate(model, val_loader, device)
         print(f"Trial val accuracy: {val_accuracy}")
         trial.report(val_accuracy, epoch)
         if trial.should_prune():
@@ -106,7 +104,7 @@ def run_baseline_optimization(config, gpu_id, trials, save_path, hash_id):
         load_if_exists=True,
         direction="maximize"
     )
-    func = lambda trial: objective(trial, config)
+    func = lambda trial: objective(trial, config, device)
     
     study.optimize(func, n_trials=trials)
     
