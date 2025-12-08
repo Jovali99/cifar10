@@ -69,8 +69,10 @@ def run_optimization(config, gpu_id, trials, save_path, hash_id, fbd_args: FbdAr
     df.to_csv(os.path.join(save_path, f"results_gpu_{gpu_id}.csv"), index=False) 
     print(f"📄 Results saved to {os.path.join(save_path, f'results_gpu_{gpu_id}.csv')}")
 
-def parallell_optimization(config, labels, gpu_ids, fbd_args):
-    study_cfg = config['fbd_study'] 
+def parallell_optimization(config, labels, fbd_args):
+    study_cfg = config['fbd_study']
+    gpu_ids = study_cfg["gpu_ids"]
+    print(f"Starting parallell optimization using the following gpu ids: {gpu_ids}")
 
     metadata = sl.buildStudyMetadata(study_cfg, config['data']) 
     hash_id, save_path = sl.saveStudy(metadata, savePath=study_cfg['root'], labels=labels)
