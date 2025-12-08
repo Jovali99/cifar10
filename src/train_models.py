@@ -221,6 +221,7 @@ def sm_worker(audit_config, train_config, gpu_id, model_indices, A_slice, attack
         shadow_population=attack_data_indices,
         training_fraction=training_data_fraction,
         online=online,
-        assignment_matrix=A_slice,
-        model_indices_override=model_indices
+        model_indices=model_indices,
+        assignment=A_slice
+
     )
