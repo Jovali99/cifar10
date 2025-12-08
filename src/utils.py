@@ -3,6 +3,7 @@ from sklearn.metrics import roc_curve
 from torch.utils.data import Dataset, DataLoader, Subset
 from tqdm import tqdm
 from src.save_load import saveShadowModelSignals, saveTargetSignals
+from torch import cat, exp, from_numpy, max, sigmoid, sum
 
 import os
 import numpy as np
@@ -441,3 +442,34 @@ def plot_bootstrap_band(ax, x, y, label, color):
 
     ax.plot(xm, ym, color=color, label=label)
     ax.fill_between(xm, ylow, yhigh, color=color, alpha=0.2)
+
+def get_gtlprobs(logits, labels, temperature=1.0, select = None):
+    select = np.arange(len(labels)) if select is None else select
+    assert len(select) == len(labels)
+    assert logits.shape[0] > max(select)
+    assert logits.shape[1] > max(labels)
+    return softmax_logits(logits, temperature)[select,labels]
+
+def softmax_logits(logits: np.ndarray, temp:float=1.0, dimension:int=-1) -> np.ndarray:
+    """Rescale logits to (0, 1).
+
+    Args:
+    ----
+        logits ( len(dataset) x ... x nb_classes ): Logits to be rescaled.
+        temp (float): Temperature for softmax.
+        dimension (int): Dimension to apply softmax.
+
+    """
+    # If the number of classes is 1, apply sigmoid to return a matrix of [1 - p, p]
+    if logits.shape[dimension] == 1:
+        logits = from_numpy(logits)
+        positive_confidence = sigmoid(logits / temp)  # Apply sigmoid to get the probability of class 1
+        zero_confidence = 1 - positive_confidence     # Probability of class 0
+        confidences = cat([zero_confidence, positive_confidence], dim=dimension)  # Stack both confidences
+        return confidences.numpy()
+
+    logits = from_numpy(logits) / temp
+    logits = logits - max(logits, dim=dimension, keepdim=True).values
+    logits = exp(logits)
+    logits = logits/sum(logits, dim=dimension, keepdim=True)
+    return logits.numpy()
