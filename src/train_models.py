@@ -11,6 +11,12 @@ import pickle
 import multiprocessing as mp
 from queue import Empty
 
+from LeakPro.leakpro.schemas import LeakProConfig
+from LeakPro.leakpro.attacks.mia_attacks.lira import AttackLiRA
+from LeakPro.leakpro.attacks.utils.shadow_model_handler import ShadowModelHandler
+from LeakPro.leakpro.input_handler.mia_handler import MIAHandler
+from src.cifar_handler import CifarInputHandler
+
 def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices):
     print("-- Training model ResNet18 on cifar10  --")
     os.makedirs("target", exist_ok=True)
@@ -134,106 +140,87 @@ def trainFbDTargetModel(cfg, train_loader, test_loader, train_indices, test_indi
         pickle.dump(meta_data, f)
 
     return model, train_result, test_result
-
-def trainShadowModel(args):
-    smh, i, indx, data_indices, shadow_population = args
-
-    # Dataloader for this worker
-    data_loader = smh.handler.get_dataloader(data_indices, params=None)
-
-    # Model blueprint
-    model, criterion, optimizer = smh._get_model_criterion_optimizer()
-    print(f"Training shadow model: {indx}")
-    # Train model
-    training_results = smh.handler.train(data_loader, model, criterion, optimizer, smh.epochs)
-    shadow_model = training_results.model
-
-    # Evaluate
-    remaining_indices = list(set(shadow_population) - set(data_indices))
-    dataset_params = data_loader.dataset.return_params()
-    test_loader = smh.handler.get_dataloader(remaining_indices, params=dataset_params)
-    test_result = smh.handler.eval(test_loader, shadow_model, criterion)
-
-    return indx, shadow_model, training_results, test_result
-
-def worker_wrapper(args, result_queue):
-    """
-    args: (smh, i, indx, data_indices, shadow_population, gpu_id)
-    result_queue: multiprocessing.Queue for returning small results
-    """
-    smh, i, indx, data_indices, shadow_population, gpu_id = args
-
-    # Bind this process to a single visible GPU
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-    # Now set torch device index 0 (the first visible device)
-    if torch.cuda.is_available():
-        torch.cuda.set_device(0)
-
-    # Run training
-    try:
-        idx, shadow_model, training_results, test_result = trainShadowModel((smh, i, indx, data_indices, shadow_population))
-        # Save the state dict & metadata inside worker (avoid pickling model)
-        state_path = f"{smh.storage_path}/{smh.model_storage_name}_{idx}.pth"
-        meta_path = f"{smh.storage_path}/{smh.metadata_storage_name}_{idx}.pkl"
-
-        torch.save(shadow_model.state_dict(), state_path)
-
-        # Prepare metadata (keep it small)
-        meta = {
-            "index": idx,
-            "train_metrics": training_results.metrics,
-            "test_result": test_result,
-            "state_path": state_path,
-            "meta_path": meta_path
-        }
-        # Optionally save meta to disk
-        with open(meta_path, "wb") as f:
-            pickle.dump(meta, f)
-
-        # push small result into queue
-        result_queue.put((idx, state_path, meta_path))
-
-    except Exception as e:
-        result_queue.put(("error", str(e)))
-        raise
     
-def create_shadow_models_parallel(smh, num_models, shadow_population, training_fraction, gpus):
-    # compute indices, assignments as in original function
-    data_size = int(len(shadow_population)*training_fraction)
-    all_indices, filtered_indices = smh._filter(data_size)
-    n_existing_models = len(filtered_indices)
-    indices_to_use = []
-    next_index = max(all_indices) + 1 if all_indices else 0
-    while len(indices_to_use) < (num_models - n_existing_models):
-        indices_to_use.append(next_index); next_index += 1
+try:
+    mp.set_start_method('spawn')
+except RuntimeError:
+    pass
+    
+def create_shadow_models_parallel(audit_config, train_config, gpu_ids):
+    leakpro_configs = LeakProConfig(**audit_config)
+    handler = MIAHandler(leakpro_configs, CifarInputHandler)
+    configs = handler.configs.audit.attack_list[0]
 
-    A = smh.construct_balanced_assignments(len(shadow_population), num_models)
-    shadow_population = np.array(shadow_population)
+    num_shadow_models = configs["num_shadow_models"]
+    online = configs["online"]
 
-    # build tasks (same as original loop)
-    tasks = []
-    for i, indx in enumerate(indices_to_use):
-        data_indices = shadow_population[np.where(A[i, :] == 1)]
-        gpu_id = gpus[i % len(gpus)]  # round-robin
-        tasks.append((smh, i, indx, data_indices, shadow_population, gpu_id))
+    attack = AttackLiRA(handler=handler, configs=configs)
+    attack_data_indices = attack.sample_indices_from_population(
+        include_train_indices=online,
+        include_test_indices=online
+    )
 
-    # Launch processes (limit concurrency to number of GPUs)
+    m = len(attack_data_indices)
+
+    # 1. Construct full assignment ONCE
+    full_A = ShadowModelHandler(handler).construct_balanced_assignments(
+        m,
+        num_shadow_models
+    )
+
+
+    # 2. Split the model rows among GPUs
+    model_ids = np.arange(num_shadow_models)
+    model_splits = np.array_split(model_ids, len(gpu_ids))
+
     procs = []
-    result_q = mp.Queue()
-    for args in tasks:
-        p = mp.Process(target=worker_wrapper, args=(args, result_q))
+    for gpu_id, model_subset in zip(gpu_ids, model_splits):
+
+        A_slice = full_A[model_subset]  # Only rows needed for that GPU
+
+        p = mp.Process(
+            target=sm_worker,
+            args=(
+                audit_config,
+                train_config,
+                gpu_id,
+                list(model_subset),
+                A_slice,
+                attack_data_indices
+            )
+        )
         p.start()
         procs.append(p)
 
-    # Wait for processes and collect results
-    results = []
     for p in procs:
         p.join()
+    return
 
-    while True:
-        try:
-            results.append(result_q.get_nowait())
-        except Empty:
-            break
+def sm_worker(audit_config, train_config, gpu_id, model_indices, A_slice, attack_data_indices): 
+    torch.cuda.set_device(gpu_id)
+    
+    print(f"Sm training started on gpu: {gpu_id}")
+    
+    leakpro_configs = LeakProConfig(**audit_config)
+    handler = MIAHandler(leakpro_configs, CifarInputHandler)
+    configs = handler.configs.audit.attack_list[0]
 
-    return results
+    attack = AttackLiRA(handler=handler, configs=configs)
+    online = configs["online"]
+    training_data_fraction = attack.training_data_fraction
+
+    smh = ShadowModelHandler(handler)
+    smh.epochs = train_config["train"]["epochs"]
+    smh.batch_size = train_config["train"]["batch_size"]
+    smh.learning_rate = train_config["train"]["learning_rate"]
+    smh.momentum = train_config["train"]["momentum"]
+
+    # Only train models belonging to this worker
+    smh.create_shadow_models(
+        num_models=len(model_indices),
+        shadow_population=attack_data_indices,
+        training_fraction=training_data_fraction,
+        online=online,
+        assignment_matrix=A_slice,
+        model_indices_override=model_indices
+    )
