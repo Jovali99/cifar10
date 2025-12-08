@@ -1,6 +1,7 @@
 from src.cifar_handler import CifarInputHandler
 from LeakPro.leakpro import LeakPro
 from src.models.resnet18_model import ResNet18
+from src.models.wideresnet28_model import WideResNet
 import torch
 import torch.nn.functional as F
 from torch import save, load, optim, nn
@@ -13,10 +14,18 @@ def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices
 
     if(cfg["data"]["dataset"] == "cifar10"):
         num_classes = 10
+    elif(cfg["data"]["dataset"] == "cifar100"):
+        num_classes = 100
     else:
         raise ValueError(f"Incorrect dataset {cfg['data']['dataset']}, should be cifar10")
 
-    model = ResNet18(num_classes=num_classes)
+    if cfg["train"]["model"] == "resnet":
+        model = ResNet18(num_classes=num_classes)
+        print("Training resnet")
+    elif cfg["train"]["model"] == "wideresnet":
+        drop_rate = cfg["train"]["drop_rate"]
+        model = WideResNet(depth=28, num_classes=num_classes, widen_factor=10, dropRate=drop_rate)
+        print("Training wideresnet")
 
     """Parse training configuration"""
     lr = cfg["train"]["learning_rate"]

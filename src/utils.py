@@ -163,7 +163,7 @@ def rescale_logits(logits, true_label):
     output_signals = np.log(y_true + 1e-45) - np.log(y_wrong + 1e-45)
     return output_signals
 
-def calculate_logits_and_inmask(dataset, model, metadata, path, idx: int | None = None):
+def calculate_logits_and_inmask(dataset, model, metadata, path, idx: int | None = None, save: bool = True):
     """
     Calculates logits and the inmask for a given model. If an index is input
     the function assumes the model is a shadow model.
@@ -183,15 +183,17 @@ def calculate_logits_and_inmask(dataset, model, metadata, path, idx: int | None 
 
     in_indices = np.array(metadata.train_indices, dtype=np.int64)
     in_mask[in_indices] = True
-    if(idx is not None):
-        saveShadowModelSignals(logits, in_mask, idx, path)
-    else:
-        print(f"Logits shape: {logits.shape}")
-        print(f"In_mask shape: {in_mask.shape}")
-        saveTargetSignals(logits, in_mask, path)
-
-    del logits
-    del in_mask
+    if save:
+        if(idx is not None):
+            saveShadowModelSignals(logits, in_mask, idx, path)
+        else:
+            print(f"Logits shape: {logits.shape}")
+            print(f"In_mask shape: {in_mask.shape}")
+            saveTargetSignals(logits, in_mask, path)
+        del logits
+        del in_mask
+        
+    return logits, in_mask
 
 def calculate_roc(scores: np.ndarray, target_inmask: np.ndarray, clip: bool = False, eps: float = 1e-6):
     """

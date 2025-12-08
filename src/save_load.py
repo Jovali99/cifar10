@@ -173,7 +173,10 @@ def saveTarget(metadata: dict, savePath:str = "target"):
     hash_id = hashCfg(metadata)
 
     # Construct save directory
-    save_dir = os.path.join(savePath, f'{"resnet18"}-{hash_id}')
+    model = metadata["train"]["model"]
+    dataset = metadata["data"]["dataset"]
+    save_dir = os.path.join(savePath, f'{model}-{dataset}-{hash_id}')
+    #save_dir = os.path.join(savePath, f'{"resnet18"}-{hash_id}')
     os.makedirs(save_dir, exist_ok=True)
 
     with open(os.path.join(save_dir, "metadata.json"), "w") as f:
@@ -182,13 +185,20 @@ def saveTarget(metadata: dict, savePath:str = "target"):
     print(f"✅ Saved training metadata with hash_id: {hash_id}")
     return hash_id, save_dir
 
-def saveTargetSignals(target_model_logits: np.ndarray, in_mask: np.ndarray, path):
+def saveTargetSignals(target_model_logits: np.ndarray, in_mask: np.ndarray, path:str, resc_logits: np.ndarray = None, gtl_probs: np.ndarray = None):
     """
-    Saves the logits and in_mask of a target model
+    Saves the logits and in_mask of a target model and optionally resc_logits and gtl_probs
     """
     # Save logits
     save_logits_path = os.path.join(path, "target_logits.npy")
     np.save(save_logits_path, target_model_logits)
+    
+    if(resc_logits is not None):
+        save_resc_logits_path = os.path.join(path, "target_rescaled_logits.npy")
+        np.save(save_resc_logits_path, resc_logits)
+    if(gtl_probs is not None):
+        save_gtl_probs_path = os.path.join(path, "target_gtl_probs.npy")
+        np.save(save_gtl_probs_path, gtl_probs)
 
     # Save in_mask
     save_in_mask_path = os.path.join(path, f"target_in_mask.npy")

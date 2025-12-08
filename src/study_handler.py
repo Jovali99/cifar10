@@ -6,6 +6,7 @@ from src.utils import sigmoid_weigths, calculate_logits, rescale_logits, calcula
 from src.save_load import saveTrial, buildTrialMetadata
 from torch import nn, optim
 from LeakPro.leakpro.attacks.mia_attacks.rmia import rmia_get_gtlprobs, rmia_vectorised
+from tqdm import tqdm
 
 import numpy as np
 import torch
@@ -20,7 +21,7 @@ test_dataset = None
 
 DEVICE = None
 
-def train_one_epoch(model, optimizer, train_loader, device):
+def train_one_epoch(model, optimizer, train_loader, device, epoch, epochs):
     model.train()
     for data, target in train_loader:
         data, target = data.to(device), target.to(device)
@@ -62,9 +63,11 @@ def objective(trial, config):
 
     if config["study"]["model"] == "resnet":
         model = torchvision.models.resnet18(num_classes=n_classes).to(DEVICE)
+        print("Optimizing resnet")
     elif config["study"]["model"] == "wideresnet":
         drop_rate = trial.suggest_float("drop_rate", 0.0, 0.5)
         model = WideResNet(depth=28, num_classes=n_classes, widen_factor=10, dropRate=drop_rate).to(DEVICE)
+        print("Optimizing wideresnet")
         
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max)
@@ -72,9 +75,10 @@ def objective(trial, config):
     max_epochs = 50
     best_val_accuracy = 0.0
     for epoch in range(max_epochs):
-        train_one_epoch(model, optimizer, train_loader, DEVICE)
+        train_one_epoch(model, optimizer, train_loader, DEVICE, epoch, max_epochs)
         scheduler.step()
         val_accuracy = evaluate(model, val_loader, DEVICE)
+        print(f"Trial val accuracy: {val_accuracy}")
         trial.report(val_accuracy, epoch)
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()

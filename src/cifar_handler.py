@@ -228,7 +228,14 @@ class CifarInputHandler(AbstractInputHandler):
         loss, acc = 0, 0
         total_samples = 0
         with no_grad():
-            for org_idx, batch_weights, data, target in loader:
+            for batch in loader:
+                # batch can be (org_idx, batch_weights, data, target) OR (data, target)
+                if len(batch) == 4:
+                    org_idx, batch_weights, data, target = batch
+                elif len(batch) == 2:
+                    data, target = batch
+                else:
+                    raise ValueError(f"Unexpected number of elements in batch: {len(batch)}")
                 data, target = data.to(gpu_or_cpu), target.to(gpu_or_cpu)
                 target = target.view(-1) 
                 output = model(data)
