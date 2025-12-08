@@ -205,19 +205,43 @@ def saveTargetSignals(target_model_logits: np.ndarray, in_mask: np.ndarray, path
     np.save(save_in_mask_path, in_mask)
     print(f"✅ Saved target model logits at: {save_logits_path}, and in mask at {save_in_mask_path}")
 
-def saveShadowModelSignals(logits: np.ndarray, in_mask, identifier: int, path: str = "processed_shadow_models"):
+def saveShadowModelSignals(identifier: int, logits: np.ndarray=None, in_mask: np.ndarray=None, 
+                           resc_logits: np.ndarray=None, gtl_probs: np.ndarray=None, metadata=None, path: str = "processed_shadow_models"):
     """
     Saves the logits and in_mask of a shadow model
     """
+    # Ensure all subdirectories exist
+    subdirs = ["logits", "in_masks", "rescaled_logits", "gtl_probabilities", "metadata"]
+    for sd in subdirs:
+        os.makedirs(os.path.join(path, sd), exist_ok=True)
+    
     # Save logits
-    save_logits_path = os.path.join(path, f"shadow_logits_{identifier}.npy")
-    np.save(save_logits_path, logits)
+    if logits is not None:
+        s_path = os.path.join(path, os.path.join("logits", f"shadow_logits_{identifier}.npy"))
+        np.save(s_path, logits)
     
     # Save in_mask
-    save_in_mask_path = os.path.join(path, f"in_mask_{identifier}.npy")
-    np.save(save_in_mask_path, in_mask)
+    if in_mask is not None:
+        s_path = os.path.join(path, os.path.join("in_masks", f"in_mask_{identifier}.npy"))
+        np.save(s_path, in_mask)
+        
+    # Save resc_logits
+    if resc_logits is not None:
+        s_path = os.path.join(path, os.path.join("rescaled_logits", f"resc_logits_{identifier}.npy"))
+        np.save(s_path, resc_logits)
+        
+    # Save gtl_probs
+    if gtl_probs is not None:
+        s_path = os.path.join(path, os.path.join("gtl_probabilities", f"gtl_probs_{identifier}.npy"))
+        np.save(s_path, gtl_probs)
+    
+    # Save metadata
+    if metadata is not None:
+        s_path = os.path.join(path, os.path.join("metadata", f"metadata_{identifier}.pkl"))
+        with open(s_path, "wb") as f:
+            pickle.dump(metadata, f)
 
-    print(f"✅ Saved shadow model logits at: {save_logits_path}, and in mask at {save_in_mask_path}")
+    print(f"✅ Saved shadow model signals at: {path}")
 
 def loadTargetSignals(target_name: str, path: str = "target"):
     """

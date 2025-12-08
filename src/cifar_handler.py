@@ -72,7 +72,7 @@ class CifarInputHandler(AbstractInputHandler):
 
             print(f"Epoch {epoch+1} completed. Train Acc: {train_accuracy:.4f}, Train Loss: {avg_train_loss:.4f}")
 
-        model.to("cpu")
+        #model.to("cpu")
 
         results = EvalOutput(accuracy = train_accuracy,
                              loss = avg_train_loss,

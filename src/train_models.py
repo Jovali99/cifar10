@@ -146,7 +146,7 @@ try:
 except RuntimeError:
     pass
     
-def create_shadow_models_parallel(audit_config, train_config, gpu_ids):
+def create_shadow_models_parallel(audit_config, train_config, gpu_ids, target_folder):
     leakpro_configs = LeakProConfig(**audit_config)
     handler = MIAHandler(leakpro_configs, CifarInputHandler)
     configs = handler.configs.audit.attack_list[0]
@@ -168,7 +168,6 @@ def create_shadow_models_parallel(audit_config, train_config, gpu_ids):
         num_shadow_models
     )
 
-
     # 2. Split the model rows among GPUs
     model_ids = np.arange(num_shadow_models)
     model_splits = np.array_split(model_ids, len(gpu_ids))
@@ -186,7 +185,8 @@ def create_shadow_models_parallel(audit_config, train_config, gpu_ids):
                 gpu_id,
                 list(model_subset),
                 A_slice,
-                attack_data_indices
+                attack_data_indices,
+                target_folder
             )
         )
         p.start()
@@ -196,10 +196,11 @@ def create_shadow_models_parallel(audit_config, train_config, gpu_ids):
         p.join()
     return
 
-def sm_worker(audit_config, train_config, gpu_id, model_indices, A_slice, attack_data_indices): 
+def sm_worker(audit_config, train_config, gpu_id, model_indices, A_slice, attack_data_indices, target_folder): 
     torch.cuda.set_device(gpu_id)
     
-    print(f"Sm training started on gpu: {gpu_id}")
+    print(f"\n Sm training started on gpu: {gpu_id}")
+    print(f"Model indices: {model_indices}\n")
     
     leakpro_configs = LeakProConfig(**audit_config)
     handler = MIAHandler(leakpro_configs, CifarInputHandler)
@@ -216,12 +217,14 @@ def sm_worker(audit_config, train_config, gpu_id, model_indices, A_slice, attack
     smh.momentum = train_config["train"]["momentum"]
 
     # Only train models belonging to this worker
+
     smh.create_shadow_models(
         num_models=len(model_indices),
         shadow_population=attack_data_indices,
         training_fraction=training_data_fraction,
         online=online,
         model_indices=model_indices,
-        assignment=A_slice
+        assignment=A_slice,
+        target_model_folder=target_folder
 
     )

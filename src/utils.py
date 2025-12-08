@@ -185,7 +185,7 @@ def calculate_logits_and_inmask(dataset, model, metadata, path, idx: int | None 
     in_mask[in_indices] = True
     if save:
         if(idx is not None):
-            saveShadowModelSignals(logits, in_mask, idx, path)
+            saveShadowModelSignals(idx, logits=logits, in_mask=in_mask, path=path)
         else:
             print(f"Logits shape: {logits.shape}")
             print(f"In_mask shape: {in_mask.shape}")
