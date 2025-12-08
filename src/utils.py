@@ -1,4 +1,4 @@
-from LeakPro.leakpro.attacks.mia_attacks.lira import lira_vectorized
+#from LeakPro.leakpro.attacks.mia_attacks.lira import lira_vectorized
 from sklearn.metrics import roc_curve
 from torch.utils.data import Dataset, DataLoader, Subset
 from tqdm import tqdm
@@ -24,7 +24,7 @@ def print_yaml(data, indent=0):
     else:
         print(f"{spacing}{data}")
 
-def bootstrap_sampling(K, M, shadow_logits, shadow_inmask, target_logits = None, target_inmask = None, replace = True, vec_mia_fun = lira_vectorized):
+""" def bootstrap_sampling(K, M, shadow_logits, shadow_inmask, target_logits = None, target_inmask = None, replace = True, vec_mia_fun = lira_vectorized):
     noneflag = False 
     if target_logits is None:
         assert target_inmask is None
@@ -56,9 +56,9 @@ def bootstrap_sampling(K, M, shadow_logits, shadow_inmask, target_logits = None,
         #    print("number of nan scores:", np.isnan(score).sum())
         fpr, tpr, thresholds =  roc_curve(target_inmask[mask,j], score[mask])        
         results.append((fpr, tpr))
-    return results
+    return results """
 
-def interpolate_unique(fpr0, fpr, tpr, extrapolate=np.nan):
+"""def interpolate_unique(fpr0, fpr, tpr, extrapolate=np.nan):
     # Sort fpr and tpr together
     sorted_indices = np.argsort(fpr)
     x = fpr[sorted_indices]
@@ -69,7 +69,7 @@ def interpolate_unique(fpr0, fpr, tpr, extrapolate=np.nan):
     x = x[filter_indices]
     y = y[filter_indices]
 
-    return np.interp(fpr0, x, y, left=extrapolate, right=extrapolate)
+    return np.interp(fpr0, x, y, left=extrapolate, right=extrapolate)"""
 
 def sigmoid_weigths(score: np.ndarray, centrality: float, temperature: float) -> np.ndarray:
     exp = np.exp((score-centrality)/temperature)
