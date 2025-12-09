@@ -1,21 +1,21 @@
+import numpy as np
+import torch
+import torch.nn.functional as F
+import torchvision
+import os
+import pickle
+import multiprocessing as mp
+
+from torch import save, load, optim, nn
+
+from src.cifar_handler import CifarInputHandler
 from src.cifar_handler import CifarInputHandler
 from LeakPro.leakpro import LeakPro
 from src.models.resnet18_model import ResNet18
 from src.models.wideresnet28_model import WideResNet
-import numpy as np
-import torch
-import torch.nn.functional as F
-from torch import save, load, optim, nn
-import os
-import pickle
-import multiprocessing as mp
-from queue import Empty
-
-from LeakPro.leakpro.schemas import LeakProConfig
-from LeakPro.leakpro.attacks.mia_attacks.lira import AttackLiRA
-from LeakPro.leakpro.attacks.utils.shadow_model_handler import ShadowModelHandler
-from LeakPro.leakpro.input_handler.mia_handler import MIAHandler
-from src.cifar_handler import CifarInputHandler
+from src.utils import calculate_logits, rescale_logits, get_gtlprobs, calculate_logits_and_inmask
+from src.save_load import saveShadowModelSignals
+from src.dataset_handler import get_dataloaders, process_dataset_by_indices, build_balanced_dataset_indices
 
 def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices):
     print("-- Training model ResNet18 on cifar10  --")
@@ -145,47 +145,98 @@ try:
     mp.set_start_method('spawn')
 except RuntimeError:
     pass
+
+def train_shadow_model(train_cfg, train_dataset, test_dataset, train_indices, test_indices, sm_index, device, full_dataset, target_folder):
+    # ------------ SETUP MODEL ------------ #
+    epochs = train_cfg["train"]["epochs"]
+    lr = train_cfg["train"]["learning_rate"]
+    weight_decay = train_cfg["train"]["weight_decay"]
+    momentum = train_cfg["train"]["momentum"]
+    t_max = train_cfg["train"]["t_max"]
+    batch_size = train_cfg["train"]["batch_size"]
+
+    if train_cfg["data"]["dataset"] == "cifar10" or train_cfg["data"]["dataset"] == "cinic10":
+        n_classes = 10
+    elif train_cfg["data"]["dataset"] == "cifar100":
+        n_classes = 100
+    else:
+        raise ValueError(f"Incorrect dataset {train_cfg['data']['dataset']}")
+
+    if train_cfg["train"]["model"] == "resnet":
+        model = torchvision.models.resnet18(num_classes=n_classes).to(device)
+        print(f"Training ResNet18 shadow model {sm_index}")
+    elif train_cfg["train"]["model"] == "wideresnet":
+        drop_rate = train_cfg["train"]["drop_rate"]
+        model = WideResNet(depth=28, num_classes=n_classes, widen_factor=10, dropRate=drop_rate).to(device)
+        print(f"Training WideResNet shadow model {sm_index}")
     
-def create_shadow_models_parallel(audit_config, train_config, gpu_ids, target_folder):
-    leakpro_configs = LeakProConfig(**audit_config)
-    handler = MIAHandler(leakpro_configs, CifarInputHandler)
-    configs = handler.configs.audit.attack_list[0]
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max)
+    
+    train_loader, test_loader = get_dataloaders(train_dataset, test_dataset)
+    
+    # ------------ TRAIN MODEL ------------ #
+    handler = CifarInputHandler();
+    train_result = handler.train(train_loader, model, criterion, optimizer, epochs, scheduler, device)
+    sm_model = train_result.model
+    test_result = handler.eval(test_loader, model, criterion)
+    
+    # ------------ SAVE RESULTS ------------ #
+    meta_data = LeakPro.make_mia_metadata(train_result = train_result,
+                                    optimizer = optimizer,
+                                    loss_fn = criterion,
+                                    dataloader = train_loader,
+                                    test_result = test_result,
+                                    epochs = epochs,
+                                    train_indices = train_indices,
+                                    test_indices = test_indices,
+                                    dataset_name = train_cfg["data"]["dataset"])
+    
+    print(f"Calculating logits for shadow model: {sm_index}")
+    labels = full_dataset.targets
+    logits, in_mask = calculate_logits_and_inmask(full_dataset, sm_model, meta_data, "irrelevant", sm_index, False)
+    resc_logits = rescale_logits(logits, labels)
+    gtl_probs = get_gtlprobs(logits, labels)
+    saveShadowModelSignals(sm_index,
+                            #logits=logits,
+                            in_mask=in_mask,
+                            resc_logits=resc_logits,
+                            gtl_probs=gtl_probs,
+                            metadata=meta_data,
+                            path=os.path.join("processed_shadow_models", target_folder))
+        
 
-    num_shadow_models = configs["num_shadow_models"]
-    online = configs["online"]
+def create_shadow_models_parallel(train_config, audit_config, gpu_ids, full_dataset, target_folder):
+    # Split the models among GPUs
+    num_shadow_models = audit_config["num_shadow_models"]
+    n_gpus = len(gpu_ids)
+    model_indices_per_gpu = [[] for _ in range(n_gpus)]
+    # Round-robin assignment of indices
+    for idx in range(num_shadow_models):
+        gpu = idx % n_gpus
+        model_indices_per_gpu[gpu].append(idx)
 
-    attack = AttackLiRA(handler=handler, configs=configs)
-    attack_data_indices = attack.sample_indices_from_population(
-        include_train_indices=online,
-        include_test_indices=online
-    )
-
-    m = len(attack_data_indices)
-
-    # 1. Construct full assignment ONCE
-    full_A = ShadowModelHandler(handler).construct_balanced_assignments(
-        m,
-        num_shadow_models
-    )
-
-    # 2. Split the model rows among GPUs
-    model_ids = np.arange(num_shadow_models)
-    model_splits = np.array_split(model_ids, len(gpu_ids))
+    # Create a list of balanced dataset_indices per shadow_model
+    dataset_size = len(full_dataset)
+    
+    all_dataset_indices_lists = build_balanced_dataset_indices(num_shadow_models, 
+                                                               audit_config["train_fraction"], 
+                                                               dataset_size)
 
     procs = []
-    for gpu_id, model_subset in zip(gpu_ids, model_splits):
-
-        A_slice = full_A[model_subset]  # Only rows needed for that GPU
-
+    for gpu_id, model_subset in zip(gpu_ids, model_indices_per_gpu):
+        
+        dataset_indices_list = [all_dataset_indices_lists[i] for i in model_subset]
+        
         p = mp.Process(
-            target=sm_worker,
+            target=batched_shadow_model_creation,
             args=(
-                audit_config,
                 train_config,
+                model_subset,
+                dataset_indices_list,
                 gpu_id,
-                list(model_subset),
-                A_slice,
-                attack_data_indices,
+                full_dataset,
                 target_folder
             )
         )
@@ -197,35 +248,13 @@ def create_shadow_models_parallel(audit_config, train_config, gpu_ids, target_fo
         p.join()
     return
 
-def sm_worker(audit_config, train_config, gpu_id, model_indices, A_slice, attack_data_indices, target_folder):
+def batched_shadow_model_creation(train_config, sm_indices, dataset_indices_list, gpu_id, full_dataset, target_folder):
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    # Get the dataset
     
-    print(f"\n Sm training started on gpu: {gpu_id}")
-    print(f"Model indices: {model_indices}\n")
-    
-    leakpro_configs = LeakProConfig(**audit_config)
-    handler = MIAHandler(leakpro_configs, CifarInputHandler)
-    configs = handler.configs.audit.attack_list[0]
+    for sm_index, dataset_indices in zip(sm_indices, dataset_indices_list):
+        train_dataset, test_dataset, train_indices, test_indices = process_dataset_by_indices(full_dataset, dataset_indices)
 
-    attack = AttackLiRA(handler=handler, configs=configs)
-    online = configs["online"]
-    training_data_fraction = attack.training_data_fraction
-
-    smh = ShadowModelHandler(handler)
-    smh.epochs = train_config["train"]["epochs"]
-    smh.batch_size = train_config["train"]["batch_size"]
-    smh.learning_rate = train_config["train"]["learning_rate"]
-    smh.momentum = train_config["train"]["momentum"]
-
-    # Only train models belonging to this worker
-
-    smh.create_shadow_models(
-        num_models=len(model_indices),
-        shadow_population=attack_data_indices,
-        training_fraction=training_data_fraction,
-        online=online,
-        model_indices=model_indices,
-        assignment=A_slice,
-        target_model_folder=target_folder
-        )
+        train_shadow_model(train_config, train_dataset, test_dataset, train_indices, test_indices, sm_index, device, full_dataset, target_folder)

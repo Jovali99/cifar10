@@ -26,7 +26,8 @@ class CifarInputHandler(AbstractInputHandler):
         criterion: torch.nn.Module = None,
         optimizer: optim.Optimizer = None,
         epochs: int = None,
-        scheduler: torch.optim.lr_scheduler._LRScheduler = None
+        scheduler: torch.optim.lr_scheduler._LRScheduler = None,
+        device = None
     ) -> TrainingOutput:
         """Model training procedure."""
 
@@ -34,8 +35,9 @@ class CifarInputHandler(AbstractInputHandler):
             raise ValueError("epochs not found in configs")
 
         # prepare training
-        gpu_or_cpu = device("cuda" if cuda.is_available() else "cpu")
-        model.to(gpu_or_cpu)
+        if device is None:
+            device = device("cuda" if cuda.is_available() else "cpu")
+        model.to(device)
 
         accuracy_history = []
         loss_history = []
@@ -46,7 +48,7 @@ class CifarInputHandler(AbstractInputHandler):
             model.train()
             for inputs, labels in tqdm(dataloader, desc=f"Epoch {epoch+1}/{epochs}"):
                 labels = labels.long()
-                inputs, labels = inputs.to(gpu_or_cpu, non_blocking=True), labels.to(gpu_or_cpu, non_blocking=True)
+                inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
                 
                 optimizer.zero_grad()
                 outputs = model(inputs)
@@ -71,8 +73,6 @@ class CifarInputHandler(AbstractInputHandler):
                 scheduler.step()
 
             print(f"Epoch {epoch+1} completed. Train Acc: {train_accuracy:.4f}, Train Loss: {avg_train_loss:.4f}")
-
-        #model.to("cpu")
 
         results = EvalOutput(accuracy = train_accuracy,
                              loss = avg_train_loss,

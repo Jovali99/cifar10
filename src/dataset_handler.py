@@ -153,3 +153,39 @@ def get_weighted_dataloaders(batch_size, train_dataset, test_dataset, weights):
     train_loader = DataLoader(weighted_train, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(weighted_test, batch_size=batch_size, shuffle=False)
     return train_loader, test_loader
+
+def build_balanced_dataset_indices(num_models, train_fraction, dataset_size):
+    N = dataset_size
+    k = int(N * train_fraction)
+    
+    # Construct assignment matrix A (num_models x N)
+    A = np.zeros((num_models, N), dtype=np.int8)
+    
+    half = num_models // 2  # Each datapoint appears in half of all models
+    for j in range(N):
+        chosen_models = np.random.choice(num_models, half, replace=False)
+        A[chosen_models, j] = 1
+
+    # Build the list of dataset indices for each shadow model
+    dataset_indices_lists = [np.where(A[i] == 1)[0] for i in range(num_models)]
+
+    # ---------- Validation asserts ----------
+    # Each data point appears in exactly half of the shadow models
+    col_sums = np.sum(A, axis=0)
+    assert np.all(col_sums == half), f"Each data point should appear in exactly half of the models, got {col_sums}"
+
+    # Each shadow model should have roughly k points (allow +/-1 due to rounding)
+    row_sums = np.sum(A, axis=1)
+    assert np.all(np.abs(row_sums - k) <= 1), f"Each shadow model should have ~{k} points, got {row_sums}"
+
+    return dataset_indices_lists
+
+def process_dataset_by_indices(full_dataset, train_indices):
+    all_indices = np.arange(len(full_dataset))
+    train_set = set(train_indices)
+    test_indices = [i for i in all_indices if i not in train_set]
+
+    train_dataset = torch.utils.data.Subset(full_dataset, train_indices)
+    test_dataset = torch.utils.data.Subset(full_dataset, test_indices)
+
+    return train_dataset, test_dataset, train_indices, test_indices
