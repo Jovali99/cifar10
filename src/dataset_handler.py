@@ -154,19 +154,20 @@ def get_weighted_dataloaders(batch_size, train_dataset, test_dataset, weights):
     test_loader = DataLoader(weighted_test, batch_size=batch_size, shuffle=False)
     return train_loader, test_loader
 
-def build_balanced_dataset_indices(num_models, train_fraction, dataset_size):
-    N = dataset_size
-    k = int(N * train_fraction)
+def build_balanced_dataset_indices(num_models, dataset_size, seed=None):
+    assert num_models % 2 == 0, "Number of shadow models must be even"
+    if seed is not None:
+        np.random.seed(seed)
     
-    # Construct assignment matrix A (num_models x N)
-    A = np.zeros((num_models, N), dtype=np.int8)
-    
-    half = num_models // 2  # Each datapoint appears in half of all models
-    for j in range(N):
-        chosen_models = np.random.choice(num_models, half, replace=False)
-        A[chosen_models, j] = 1
+    A = np.zeros((num_models, dataset_size), dtype=np.uint8)
+    all_indices = np.arange(dataset_size)
 
-    # Build the list of dataset indices for each shadow model
+    for i in range(0, num_models, 2):
+        permuted = np.random.permutation(all_indices)
+        half = dataset_size // 2
+        A[i, permuted[:half]] = 1
+        A[i+1, permuted[half:]] = 1
+
     dataset_indices_lists = [np.where(A[i] == 1)[0] for i in range(num_models)]
 
     # ---------- Validation asserts ----------
@@ -176,7 +177,7 @@ def build_balanced_dataset_indices(num_models, train_fraction, dataset_size):
 
     # Each shadow model should have roughly k points (allow +/-1 due to rounding)
     row_sums = np.sum(A, axis=1)
-    assert np.all(np.abs(row_sums - k) <= 1), f"Each shadow model should have ~{k} points, got {row_sums}"
+    assert np.all(row_sums == half), f"Each shadow model should have exactly {half} points, got {row_sums}"
 
     return dataset_indices_lists
 

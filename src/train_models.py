@@ -209,7 +209,7 @@ def train_shadow_model(train_cfg, train_dataset, test_dataset, train_indices, te
 
 def create_shadow_models_parallel(train_config, audit_config, gpu_ids, full_dataset, target_folder):
     # Split the models among GPUs
-    num_shadow_models = audit_config["num_shadow_models"]
+    num_shadow_models = audit_config["audit"]["attack_list"][0]["num_shadow_models"]
     n_gpus = len(gpu_ids)
     model_indices_per_gpu = [[] for _ in range(n_gpus)]
     # Round-robin assignment of indices
@@ -219,14 +219,12 @@ def create_shadow_models_parallel(train_config, audit_config, gpu_ids, full_data
 
     # Create a list of balanced dataset_indices per shadow_model
     dataset_size = len(full_dataset)
-    
     all_dataset_indices_lists = build_balanced_dataset_indices(num_shadow_models, 
-                                                               audit_config["train_fraction"], 
                                                                dataset_size)
 
     procs = []
     for gpu_id, model_subset in zip(gpu_ids, model_indices_per_gpu):
-        
+        print(f"starting sm training on gpu: {gpu_id}, sm indices: {model_subset}")
         dataset_indices_list = [all_dataset_indices_lists[i] for i in model_subset]
         
         p = mp.Process(
