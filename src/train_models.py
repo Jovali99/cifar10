@@ -189,15 +189,17 @@ def create_shadow_models_parallel(audit_config, train_config, gpu_ids, target_fo
                 target_folder
             )
         )
-        p.start()
         procs.append(p)
-
+        
+    for p in procs:
+        p.start() 
     for p in procs:
         p.join()
     return
 
-def sm_worker(audit_config, train_config, gpu_id, model_indices, A_slice, attack_data_indices, target_folder): 
-    torch.cuda.set_device(gpu_id)
+def sm_worker(audit_config, train_config, gpu_id, model_indices, A_slice, attack_data_indices, target_folder):
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     print(f"\n Sm training started on gpu: {gpu_id}")
     print(f"Model indices: {model_indices}\n")
@@ -226,5 +228,4 @@ def sm_worker(audit_config, train_config, gpu_id, model_indices, A_slice, attack
         model_indices=model_indices,
         assignment=A_slice,
         target_model_folder=target_folder
-
-    )
+        )
