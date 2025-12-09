@@ -174,7 +174,7 @@ def train_shadow_model(train_cfg, train_dataset, test_dataset, train_indices, te
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max)
     
-    train_loader, test_loader = get_dataloaders(train_dataset, test_dataset)
+    train_loader, test_loader = get_dataloaders(batch_size, train_dataset, test_dataset)
     
     # ------------ TRAIN MODEL ------------ #
     handler = CifarInputHandler();
