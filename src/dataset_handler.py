@@ -42,19 +42,7 @@ def loadDataset(data_cfg):
         with open(dataset_path, "rb") as f:
             full_dataset = pickle.load(f)
 
-        # -----------------------------
-        # Split full dataset into train/test
-        # -----------------------------
-        n_total = len(full_dataset)
-        n_train = int(0.5 * n_total)  # example: 90% train, 10% test
-        n_test = n_total - n_train
-
-        train_dataset, test_dataset = torch.utils.data.random_split(
-            full_dataset, [n_train, n_test], generator=torch.Generator().manual_seed(42)
-        )
-
-        # Return these as normal train/test sets
-        return train_dataset, test_dataset
+        return None, None, full_dataset
 
     # Otherwise build fresh
     print("📂 No saved dataset found — loading from source.")
@@ -76,7 +64,7 @@ def loadDataset(data_cfg):
     assert trainset != None, "Failed loading the train set"
     assert testset != None, "Failed loading the test set"
     print("-- Dataset loaded: ", dataset_name, " --")
-    return trainset, testset
+    return trainset, testset, None
 
 def toTensor(trainset, testset):
     train_data = tensor(trainset.data).permute(0, 3, 1, 2).float() / 255
@@ -104,22 +92,23 @@ def splitDataset(dataset, train_frac, test_frac):
     train_idx, test_idx = train_test_split(indices, test_size=test_size, shuffle=True)
     return train_idx, test_idx
 
-def processDataset(data_cfg, trainset, testset, in_indices_mask=None):
-    print("-- Processing dataset for training --")
-
+def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=None):
     f_train = float(data_cfg["f_train"])
     f_test = float(data_cfg["f_test"]) 
 
-    train_data, test_data, train_targets, test_targets = toTensor(trainset, testset)
+    if dataset is None:
+        print("-- Processing dataset for training --")
 
-    data = cat([train_data.clone().detach(), test_data.clone().detach()], dim=0)
-    targets = cat([train_targets, test_targets], dim=0)
-    if(data_cfg["dataset"] == "cifar10"):
-        assert len(data) == 60000, "Population dataset should contain 60000 samples"
-    elif(data_cfg["dataset"] == "cinic10"):
-        assert len(data) == 270000, "Population dataset should contain 60000 samples"
+        train_data, test_data, train_targets, test_targets = toTensor(trainset, testset)
 
-    dataset = CifarInputHandler.UserDataset(data, targets)
+        data = cat([train_data.clone().detach(), test_data.clone().detach()], dim=0)
+        targets = cat([train_targets, test_targets], dim=0)
+        if(data_cfg["dataset"] == "cifar10"):
+            assert len(data) == 60000, "Population dataset should contain 60000 samples"
+        elif(data_cfg["dataset"] == "cinic10"):
+            assert len(data) == 270000, "Population dataset should contain 60000 samples"
+
+        dataset = CifarInputHandler.UserDataset(data, targets)
 
     # ---------------------------------------------------------------------
     # CASE 1 — Custom train indices given 
