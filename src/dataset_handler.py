@@ -1,12 +1,17 @@
 import os
 import torch
-from torchvision.datasets import CIFAR10
-from torchvision import transforms
-from torch import tensor, cat, save, load, optim, nn
-from torch.utils.data import Dataset, DataLoader, Subset
-from sklearn.model_selection import train_test_split
 import pickle
 import numpy as np
+
+from torchvision.datasets import CIFAR10
+from torchvision import datasets
+from torchvision import transforms
+from torch import tensor, cat, save, load, optim, nn
+from torch.utils.data import Dataset, DataLoader, Subset, random_split, ConcatDataset
+from sklearn.model_selection import train_test_split
+from PIL import Image
+
+from src.dataclasses import CIFARDatasetStructure
 from src.cifar_handler import CifarInputHandler
 
 # Basic dataset class to handle weighted datsets
@@ -35,7 +40,10 @@ def loadDataset(data_cfg):
     if(dataset_name == "cifar10"):
         trainset = CIFAR10(root=root, train=True, download=True, transform=transform)
         testset = CIFAR10(root=root, train=False, download=True, transform=transform)
+    elif(dataset_name == "cinic10"):
+        trainset, testset = load_cinic()
     else:
+
         raise ValueError(f"Unsupported dataset: {dataset_name}")
 
     assert trainset != None, "Failed loading the train set"
@@ -79,7 +87,10 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None):
 
     data = cat([train_data.clone().detach(), test_data.clone().detach()], dim=0)
     targets = cat([train_targets, test_targets], dim=0)
-    assert len(data) == 60000, "Population dataset should contain 60000 samples"
+    if(data_cfg["dataset"] == "cifar10"):
+        assert len(data) == 60000, "Population dataset should contain 60000 samples"
+    elif(data_cfg["dataset"] == "cinic10"):
+        assert len(data) == 270000, "Population dataset should contain 60000 samples"
 
     dataset = CifarInputHandler.UserDataset(data, targets)
 
@@ -173,7 +184,7 @@ def build_balanced_dataset_indices(num_models, dataset_size, seed=None):
     # ---------- Validation asserts ----------
     # Each data point appears in exactly half of the shadow models
     col_sums = np.sum(A, axis=0)
-    assert np.all(col_sums == half), f"Each data point should appear in exactly half of the models, got {col_sums}"
+    assert np.all(col_sums == num_models // 2), f"Each data point should appear in exactly half of the models, got {col_sums}"
 
     # Each shadow model should have roughly k points (allow +/-1 due to rounding)
     row_sums = np.sum(A, axis=1)
@@ -190,3 +201,65 @@ def process_dataset_by_indices(full_dataset, train_indices):
     test_dataset = torch.utils.data.Subset(full_dataset, test_indices)
 
     return train_dataset, test_dataset, train_indices, test_indices
+
+def imagefolder_to_arrays(img_folder):
+    """Converts an ImageFolder dataset to numpy arrays (N, 32, 32, 3) and targets."""
+    data = []
+    targets = []
+
+    for img, label in img_folder:
+        # ImageFolder returns PIL images; convert to numpy RGB
+        arr = np.array(img.convert("RGB"))
+        data.append(arr)
+        targets.append(label)
+
+    data = np.stack(data, axis=0)  # (N,32,32,3)
+    return data, targets
+
+def load_cinic(root="data/cinic10"):
+    """
+    Loads CINIC-10 into CIFAR-style data structures.
+
+    train = train + half of valid
+    test  = test  + half of valid
+    """
+
+    train_path = os.path.join(root, "train")
+    test_path  = os.path.join(root, "test")
+    valid_path = os.path.join(root, "valid")
+
+    # Load raw image folders (NO transforms)
+    train_folder = datasets.ImageFolder(train_path)
+    test_folder  = datasets.ImageFolder(test_path)
+    valid_folder = datasets.ImageFolder(valid_path)
+
+    # Split valid folder 50/50
+    val_len = len(valid_folder)
+    half = val_len // 2
+
+    valid_first_half, valid_second_half = random_split(
+        valid_folder, [half, val_len - half]
+    )
+
+    assert valid_first_half.dataset is valid_folder
+    assert valid_second_half.dataset is valid_folder
+
+    # Convert to numpy + targets
+    train_data, train_targets = imagefolder_to_arrays(train_folder)
+    test_data,  test_targets  = imagefolder_to_arrays(test_folder)
+
+    # Convert halves
+    val1_data, val1_targets = imagefolder_to_arrays(valid_first_half)
+    val2_data, val2_targets = imagefolder_to_arrays(valid_second_half)
+
+    # Merge into CIFAR-style datasets
+    train_data   = np.concatenate([train_data, val1_data], axis=0)
+    train_targets = train_targets + val1_targets
+
+    test_data   = np.concatenate([test_data, val2_data], axis=0)
+    test_targets = test_targets + val2_targets
+
+    trainset = CIFARDatasetStructure(train_data, train_targets)
+    testset  = CIFARDatasetStructure(test_data, test_targets)
+
+    return trainset, testset

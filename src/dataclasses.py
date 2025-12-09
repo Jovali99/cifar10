@@ -18,3 +18,12 @@ class FbdArgs:
     shadow_inmask: np.ndarray
     target_inmask: np.ndarray
     tauc_ref: float
+
+class CIFARDatasetStructure:
+    """Holds .data (N,H,W,3) and .targets just like CIFAR10."""
+    def __init__(self, data, targets):
+        self.data = data  # numpy array uint8
+        self.targets = targets  # list of ints
+
+    def __len__(self):
+        return len(self.targets)
