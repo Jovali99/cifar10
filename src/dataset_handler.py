@@ -10,6 +10,7 @@ from torch import tensor, cat, save, load, optim, nn
 from torch.utils.data import Dataset, DataLoader, Subset, random_split, ConcatDataset
 from sklearn.model_selection import train_test_split
 from PIL import Image
+from tqdm import tqdm
 
 from src.dataclasses import CIFARDatasetStructure
 from src.cifar_handler import CifarInputHandler
@@ -31,6 +32,32 @@ class weightedDataset(Dataset):
 def loadDataset(data_cfg):
     dataset_name = data_cfg["dataset"]
     root = data_cfg.get("root", data_cfg.get("data_dir"))
+    dataset_path = os.path.join(root, dataset_name + ".pkl")
+
+    # If saved dataset exists -> skip raw loading
+    if os.path.exists(dataset_path):
+        print(f"📦 Found saved dataset: {dataset_path}")
+        print("⏩ Skipping raw dataset load (fast restore)")
+
+        with open(dataset_path, "rb") as f:
+            full_dataset = pickle.load(f)
+
+        # -----------------------------
+        # Split full dataset into train/test
+        # -----------------------------
+        n_total = len(full_dataset)
+        n_train = int(0.5 * n_total)  # example: 90% train, 10% test
+        n_test = n_total - n_train
+
+        train_dataset, test_dataset = torch.utils.data.random_split(
+            full_dataset, [n_train, n_test], generator=torch.Generator().manual_seed(42)
+        )
+
+        # Return these as normal train/test sets
+        return train_dataset, test_dataset
+
+    # Otherwise build fresh
+    print("📂 No saved dataset found — loading from source.")
     
     transform = transforms.Compose([
        transforms.ToTensor(),  # Convert PIL image to Tensor
@@ -147,8 +174,8 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None):
 
 # Used for optuna studies
 def get_dataloaders(batch_size, train_dataset, test_dataset):
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
     return train_loader, test_loader
 
 def get_weighted_dataloaders(batch_size, train_dataset, test_dataset, weights):
@@ -207,8 +234,7 @@ def imagefolder_to_arrays(img_folder):
     data = []
     targets = []
 
-    for img, label in img_folder:
-        # ImageFolder returns PIL images; convert to numpy RGB
+    for img, label in tqdm(img_folder, desc="Converting images to numpy"):
         arr = np.array(img.convert("RGB"))
         data.append(arr)
         targets.append(label)
