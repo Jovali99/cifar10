@@ -146,10 +146,10 @@ def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_g
     else:
         raise ValueError(f"Incorrect dataset {cfg['data']['dataset']}")
     
-    if cfg["study"]["model"] == "resnet":
+    if cfg["fbd_study"]["model"] == "resnet":
         model = torchvision.models.resnet18(num_classes=num_classes).to(device)
         print("Optimizing resnet")
-    elif cfg["study"]["model"] == "wideresnet":
+    elif cfg["fbd_study"]["model"] == "wideresnet":
         drop_rate = cfg["fbd_study"]["drop_rate"]
         model = WideResNet(depth=28, num_classes=num_classes, widen_factor=10, dropRate=drop_rate).to(device)
         print("Optimizing wideresnet")
