@@ -308,7 +308,7 @@ def loadShadowModelSignals(target_name: str, load_dict: dict = None, path: str =
             "metadata_pkl": True
         }
 
-    base_dir = path
+    base_dir = os.path.join(path, target_name)
     assert os.path.exists(base_dir), f"Base shadow path does not exist: {base_dir}"
 
     # Storage lists for stacking

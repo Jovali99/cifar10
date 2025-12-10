@@ -225,8 +225,8 @@ def calculate_roc(scores: np.ndarray, target_inmask: np.ndarray, clip: bool = Fa
     tp_cum = np.cumsum(inmask_sorted == 1)
     fp_cum = np.cumsum(inmask_sorted == 0)
 
-    positives = sum(target_inmask == 1)
-    negatives = sum(target_inmask == 0)
+    positives = np.sum(target_inmask == 1)
+    negatives = np.sum(target_inmask == 0)
 
     tpr_curve = tp_cum / positives 
     fpr_curve = fp_cum / negatives
