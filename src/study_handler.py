@@ -145,8 +145,14 @@ def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_g
         num_classes = 100
     else:
         raise ValueError(f"Incorrect dataset {cfg['data']['dataset']}")
-
-    model = ResNet18(num_classes=num_classes)
+    
+    if cfg["study"]["model"] == "resnet":
+        model = torchvision.models.resnet18(num_classes=num_classes).to(device)
+        print("Optimizing resnet")
+    elif cfg["study"]["model"] == "wideresnet":
+        drop_rate = trial.suggest_float("drop_rate", 0.0, 0.5)
+        model = WideResNet(depth=28, num_classes=num_classes, widen_factor=10, dropRate=drop_rate).to(device)
+        print("Optimizing wideresnet")
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay,)

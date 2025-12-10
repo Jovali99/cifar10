@@ -267,7 +267,16 @@ def loadTargetSignals(target_name: str, path: str = "target"):
     with open(model_metadata_pkl_path, "rb") as f:
         metadata_pkl = pickle.load(f)
 
-    print(f"✅ Target model logits, inmask and metadata loaded from: {target_dir}")
+    if target_logits is not None:
+        print(f"✅ Target logits loaded, shape: {target_logits.shape}")
+    if target_inmask is not None:
+        print(f"✅ Target inmask loaded, shape: {target_inmask.shape}")
+    if resc_logits is not None:
+        print(f"✅ Target resc_logits loaded, shape: {resc_logits.shape}")
+    if gtl_probs is not None:
+        print(f"✅ Target gtl_probs loaded, shape: {gtl_probs.shape}")
+
+    print(f"loaded from: {target_dir}")
     return target_logits, target_inmask, resc_logits, gtl_probs, metadata, metadata_pkl
 
 def loadShadowModelSignals(target_name: str, load_dict: dict = None, path: str = "processed_shadow_models"):
@@ -361,7 +370,6 @@ def loadShadowModelSignals(target_name: str, load_dict: dict = None, path: str =
     sm_in_masks    = np.stack(inmask_list,      axis=1) if inmask_list      else False
     sm_metadata    = metadata_list if metadata_list else False
 
-    # Optional debugging shapes
     if sm_logits is not False:
         print(f"➡️ Logits shape: {sm_logits.shape}")
     if sm_in_masks is not False:
