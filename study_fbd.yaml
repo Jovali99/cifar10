@@ -1,6 +1,6 @@
 fbd_study: # Configuration for training
-  study_name: "cifar10-wideresnet-fbd"
-  target_folder: "wideresnet-d971f7dcdc"
+  study_name: "resnet-cinic10-fbd"
+  target_folder: "resnet-cinic10-c51d329813"
   trials: 1000
   epochs: 25 # Integer number for indicating the epochs for training target model.
   batch_size: 128 # Integer number for indicating batch size for training the target model.
@@ -23,7 +23,7 @@ fbd_study: # Configuration for training
   root: ./study
 
 data: # Configuration for data
-  dataset: cifar10 # String indicates the name of the dataset
+  dataset: cinic10 # String indicates the name of the dataset
   default_dist: False # Should custom training and testing dataset be used, if false f_train and f_test will be used
   f_train: 0.5 # Float number from 0 to 1 indicating the fraction of the train dataset
   f_test: 0.5 # Float number from 0 to 1 indicating the size of the test set
