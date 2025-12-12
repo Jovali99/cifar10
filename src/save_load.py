@@ -319,15 +319,32 @@ def loadShadowModelSignals(target_name: str, load_dict: dict = None, path: str =
     base_dir = os.path.join(path, target_name)
     assert os.path.exists(base_dir), f"Base shadow path does not exist: {base_dir}"
 
-    # Storage lists for stacking
-    logits_list = []
-    resc_logits_list = []
-    gtl_probs_list = []
-    inmask_list = []
-    metadata_list = []
+    # ---- Count files in each component directory ----
+    def count_files(subdir, prefix):
+        d = os.path.join(base_dir, subdir)
+        if not os.path.exists(d):
+            return 0
+        return sum(f.startswith(prefix) for f in os.listdir(d))
 
-    index = 0
-    while True:
+    count_logits      = count_files("logits", "shadow_logits_")
+    count_inmask      = count_files("in_masks", "in_mask_")
+    count_resc_logits = count_files("rescaled_logits", "resc_logits_")
+    count_gtl_probs   = count_files("gtl_probabilities", "gtl_probs_")
+    count_metadata    = count_files("metadata", "metadata_")
+
+    expected_n = max(
+        count_logits, count_inmask, count_resc_logits,
+        count_gtl_probs, count_metadata
+    )
+
+    # Storage lists for stacking
+    logits_list      = [None] * expected_n
+    resc_logits_list = [None] * expected_n
+    gtl_probs_list   = [None] * expected_n
+    inmask_list      = [None] * expected_n
+    metadata_list    = [None] * expected_n
+
+    for index in range(expected_n):
         # Build all paths
         paths = {
             "logits":        os.path.join(base_dir, "logits",             f"shadow_logits_{index}.npy"),
@@ -337,40 +354,44 @@ def loadShadowModelSignals(target_name: str, load_dict: dict = None, path: str =
             "metadata_pkl":  os.path.join(base_dir, "metadata",           f"metadata_{index}.pkl")
         }
 
-        # Detect termination: if NONE of these files exist → stop
-        if not any(os.path.exists(p) for p in paths.values()):
-            break
-
-        # Load requested components
+        # Logits
         if load_dict.get("logits", False) and os.path.exists(paths["logits"]):
-            logits_list.append(np.load(paths["logits"]))
+            logits_list[index] = np.load(paths["logits"])
 
+        # Rescaled logits
         if load_dict.get("resc_logits", False) and os.path.exists(paths["resc_logits"]):
-            resc_logits_list.append(np.load(paths["resc_logits"]))
+            resc_logits_list[index] = np.load(paths["resc_logits"])
 
+        # gtl_probs
         if load_dict.get("gtl_probs", False) and os.path.exists(paths["gtl_probs"]):
-            gtl_probs_list.append(np.load(paths["gtl_probs"]))
+            gtl_probs_list[index] = np.load(paths["gtl_probs"])
 
+        # In-mask
         if load_dict.get("in_mask", False) and os.path.exists(paths["in_mask"]):
-            inmask_list.append(np.load(paths["in_mask"]))
+            inmask_list[index] = np.load(paths["in_mask"])
 
+        # Metadata
         if load_dict.get("metadata_pkl", False) and os.path.exists(paths["metadata_pkl"]):
             with open(paths["metadata_pkl"], "rb") as f:
-                metadata_list.append(pickle.load(f))
+                metadata_list[index] = pickle.load(f)
 
-        if load_dict.get("resc_logits", False) and os.path.exists(paths["resc_logits"]):
-            resc_logits_list.append(np.load(paths["resc_logits"]))
+    print(f"✅ Loaded up to index {expected_n}")
 
-        index += 1
-
-    print(f"✅ Loaded {index} shadow models.")
+    def stack_or_false(lst):
+        if not any(isinstance(x, np.ndarray) for x in lst):
+            return False
+        return np.stack([
+        x if isinstance(x, np.ndarray) else np.full_like(next(y for y in lst if isinstance(y, np.ndarray)), np.nan)
+        for x in lst
+    ], axis=1)
 
     # Convert lists to stacked ndarrays OR False
-    sm_logits      = np.stack(logits_list,      axis=1) if logits_list      else False
-    sm_resc_logits = np.stack(resc_logits_list, axis=1) if resc_logits_list else False
-    sm_gtl_probs   = np.stack(gtl_probs_list,   axis=1) if gtl_probs_list   else False
-    sm_in_masks    = np.stack(inmask_list,      axis=1) if inmask_list      else False
-    sm_metadata    = metadata_list if metadata_list else False
+    sm_logits      = stack_or_false(logits_list) if load_dict["logits"] else False
+    sm_resc_logits = stack_or_false(resc_logits_list) if load_dict["resc_logits"] else False
+    sm_gtl_probs   = stack_or_false(gtl_probs_list) if load_dict["gtl_probs"] else False
+    sm_in_masks    = stack_or_false(inmask_list) if load_dict["in_mask"] else False
+
+    sm_metadata = metadata_list if any(m is not None for m in metadata_list) else False
 
     if sm_logits is not False:
         print(f"➡️ Logits shape: {sm_logits.shape}")

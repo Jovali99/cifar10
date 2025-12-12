@@ -207,20 +207,51 @@ def train_shadow_model(train_cfg, train_dataset, test_dataset, train_indices, te
                             path=os.path.join("processed_shadow_models", target_folder))
         
 
-def create_shadow_models_parallel(train_config, audit_config, gpu_ids, full_dataset, target_folder):
+def create_shadow_models_parallel(train_config, audit_config, gpu_ids, full_dataset, target_folder, train_missing: bool = False, missing_indices: list = []):
     # Split the models among GPUs
-    num_shadow_models = audit_config["audit"]["attack_list"][0]["num_shadow_models"]
     n_gpus = len(gpu_ids)
-    model_indices_per_gpu = [[] for _ in range(n_gpus)]
+    index_file = os.path.join(target_folder, "shadow_model_indices.npy")
     # Round-robin assignment of indices
-    for idx in range(num_shadow_models):
-        gpu = idx % n_gpus
-        model_indices_per_gpu[gpu].append(idx)
 
     # Create a list of balanced dataset_indices per shadow_model
-    dataset_size = len(full_dataset)
-    all_dataset_indices_lists = build_balanced_dataset_indices(num_shadow_models, 
-                                                               dataset_size)
+    if not train_missing:
+        num_shadow_models = audit_config["audit"]["attack_list"][0]["num_shadow_models"]
+        model_indices_per_gpu = [[] for _ in range(n_gpus)]
+        for idx in range(num_shadow_models):
+            gpu = idx % n_gpus
+            model_indices_per_gpu[gpu].append(idx)
+        dataset_size = len(full_dataset)
+        all_dataset_indices_lists = build_balanced_dataset_indices(num_shadow_models, dataset_size)
+
+        shadow_indices_map = {
+            model_id: all_dataset_indices_lists[model_id]
+            for model_id in range(num_shadow_models)
+        }
+
+        np.save(index_file, shadow_indices_map, allow_pickle=True)
+        print(f"Saved shadow model index assignments to: {index_file}")
+    else:
+        if not os.path.exists(index_file):
+            raise FileNotFoundError( f"train_missing=True but no saved index file found at: {index_file}")
+
+        shadow_indices_map = np.load(index_file, allow_pickle=True).item()
+        print(f"[INFO] Loaded saved shadow model index assignments from {index_file}")
+
+                # Extract ONLY the missing ones
+        missing_indices = sorted(missing_indices)
+
+        model_indices_per_gpu = [[] for _ in range(n_gpus)]
+
+        # Round-robin over missing list itself
+        for i, model_id in enumerate(missing_indices):
+            gpu = i % n_gpus
+            model_indices_per_gpu[gpu].append(model_id)
+
+        # Build dataset lists ONLY for missing models
+        all_dataset_indices_lists = {
+            mid: shadow_indices_map[mid]
+            for mid in missing_indices
+        }
 
     procs = []
     for gpu_id, model_subset in zip(gpu_ids, model_indices_per_gpu):

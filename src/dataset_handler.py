@@ -181,7 +181,7 @@ def get_weighted_dataloaders(batch_size, train_dataset, test_dataset, weights):
     test_loader = DataLoader(weighted_test, batch_size=batch_size, shuffle=False)
     return train_loader, test_loader
 
-def build_balanced_dataset_indices(num_models, dataset_size, seed=None):
+def build_balanced_dataset_indices(num_models, dataset_size, seed=123):
     assert num_models % 2 == 0, "Number of shadow models must be even"
     if seed is not None:
         np.random.seed(seed)
