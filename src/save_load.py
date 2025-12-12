@@ -358,9 +358,32 @@ def loadShadowModelSignals(target_name: str, load_dict: dict = None, path: str =
             with open(paths["metadata_pkl"], "rb") as f:
                 metadata_list.append(pickle.load(f))
 
+        if load_dict.get("resc_logits", False) and os.path.exists(paths["resc_logits"]):
+            resc_logits_list.append(np.load(paths["resc_logits"]))
+
         index += 1
 
     print(f"✅ Loaded {index} shadow models.")
+
+    # Convert lists to stacked ndarrays OR False
+    sm_logits      = np.stack(logits_list,      axis=1) if logits_list      else False
+    sm_resc_logits = np.stack(resc_logits_list, axis=1) if resc_logits_list else False
+    sm_gtl_probs   = np.stack(gtl_probs_list,   axis=1) if gtl_probs_list   else False
+    sm_in_masks    = np.stack(inmask_list,      axis=1) if inmask_list      else False
+    sm_metadata    = metadata_list if metadata_list else False
+
+    if sm_logits is not False:
+        print(f"➡️ Logits shape: {sm_logits.shape}")
+    if sm_in_masks is not False:
+        print(f"➡️ In-mask shape: {sm_in_masks.shape}")
+    if sm_resc_logits is not False:
+        print(f"➡️ resc_logits shape: {sm_resc_logits.shape}")
+    if sm_gtl_probs is not False:
+        print(f"➡️ gtl_prob shape: {sm_gtl_probs.shape}")
+
+    return sm_logits, sm_resc_logits, sm_gtl_probs, sm_in_masks, sm_metadata
+
+
 
 def loadFbdStudy(study_name: str, metadata: bool = True, gtl: bool = True, logits: bool = True, start_index: int = 0):
     """
