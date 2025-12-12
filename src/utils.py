@@ -71,8 +71,8 @@ def print_yaml(data, indent=0):
 
     return np.interp(fpr0, x, y, left=extrapolate, right=extrapolate)"""
 
-def sigmoid_weigths(score: np.ndarray, centrality: float, temperature: float) -> np.ndarray:
-    exp = np.exp((score-centrality)/temperature)
+def sigmoid_weigths(score: np.ndarray, centrality: float, temperature: float, epsilon: float = 1e-6) -> np.ndarray:
+    exp = np.exp((score-centrality)/(temperature+epsilon))
     weight = 1.0/(1.0+exp)
     return weight
 
@@ -446,8 +446,8 @@ def plot_bootstrap_band(ax, x, y, label, color):
 def get_gtlprobs(logits, labels, temperature=1.0, select = None):
     select = np.arange(len(labels)) if select is None else select
     assert len(select) == len(labels)
-    assert logits.shape[0] > max(select)
-    assert logits.shape[1] > max(labels)
+    assert logits.shape[0] > np.max(select)
+    assert logits.shape[1] > np.max(labels)
     return softmax_logits(logits, temperature)[select,labels]
 
 def softmax_logits(logits: np.ndarray, temp:float=1.0, dimension:int=-1) -> np.ndarray:

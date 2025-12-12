@@ -3,7 +3,7 @@ audit:  # Configurations for auditing
   attack_list:
     - attack: lira
       online: True
-      num_shadow_models: 4
+      num_shadow_models: 256
       training_data_fraction: 0.5
       vectorized: True
 
@@ -13,11 +13,11 @@ audit:  # Configurations for auditing
 
 target:
   # Target model path
-  module_path: "src/models/wideresnet28_model.py"
-  model_class: "WideResNet" 
+  module_path: "src/models/resnet18_model.py"
+  model_class: "resnet" 
   target_folder: "./target"
   # Data paths
-  data_path: "./data/cifar10.pkl"
+  data_path: "./data/cinic10.pkl"
 
 shadow_model:
 

@@ -120,14 +120,14 @@ def run_baseline_optimization(config, gpu_id, trials, save_path, hash_id):
 
 def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_gtl_probs, shadow_inmask, target_inmask, tauc_ref, save_path, device):
     """
-        noise_std: Trial between [0.001, 0.1]
-        Centrality: Trial stepped between [0.0, 1.0]
-        Temperature: Trial between [0.05, 0.5]
+        noise_std: Trial between [0.0001, 0.05] step = 0.005
+        Centrality: Trial stepped between [0.0, 1.0] step = 0.1
+        Temperature: Trial between [0.000 + 1e-6, 0.5] step = 0.05
     """
     # study params
-    noise_std = trial.suggest_float("noise_std", 1e-3, 1e-1, log=True)
+    noise_std = trial.suggest_float("noise_std", 1e-4, 5e-2, step=0.005)
     centrality = trial.suggest_float("centrality", 0.0, 1.0, step=0.1)
-    temperature = trial.suggest_float("temperature", 5e-2, 5e-1, step=0.05)
+    temperature = trial.suggest_float("temperature", 0.0, 5e-1, step=0.05)
 
     # Calculate the weights
     weights = sigmoid_weigths(rmia_scores, centrality, temperature)

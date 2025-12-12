@@ -36,7 +36,7 @@ class CifarInputHandler(AbstractInputHandler):
 
         # prepare training
         if device is None:
-            device = device("cuda" if cuda.is_available() else "cpu")
+            device = torch.device("cuda" if cuda.is_available() else "cpu")
         model.to(device)
 
         accuracy_history = []

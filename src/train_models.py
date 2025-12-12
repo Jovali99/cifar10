@@ -21,7 +21,7 @@ def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices
     print("-- Training model ResNet18 on cifar10  --")
     os.makedirs("target", exist_ok=True)
 
-    if(cfg["data"]["dataset"] == "cifar10"):
+    if(cfg["data"]["dataset"] == "cifar10" or cfg["data"]["dataset"] == "cinic10"):
         num_classes = 10
     elif(cfg["data"]["dataset"] == "cifar100"):
         num_classes = 100

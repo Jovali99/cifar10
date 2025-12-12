@@ -244,17 +244,20 @@ def saveShadowModelSignals(identifier: int, logits: np.ndarray=None, in_mask: np
     print(f"✅ Saved shadow model signals at: {path}")
 
 def loadTargetSignals(target_name: str, path: str = "target"):
-    """
-    Loads the target logits, in_mask and metadata from input path
-    """
+    """ Loads the target logits, in_mask and metadata from input path """
+
     target_dir = os.path.join(path, target_name)
     target_logits_path = os.path.join(target_dir, "target_logits.npy")
     target_inmask_path = os.path.join(target_dir, "target_in_mask.npy")
+    target_resc_logits_path = os.path.join(target_dir, "target_rescaled_logits.npy")
+    target_gtl_probs_path = os.path.join(target_dir, "target_gtl_probs.npy")
     target_metadata_path = os.path.join(target_dir, "metadata.json")
     model_metadata_pkl_path = os.path.join(target_dir, "model_metadata.pkl")
 
     target_logits = np.load(target_logits_path)
     target_inmask = np.load(target_inmask_path)
+    resc_logits = np.load(target_resc_logits_path)
+    gtl_probs = np.load(target_gtl_probs_path)
 
     # Load metadata
     with open(target_metadata_path, "r") as f:
@@ -263,48 +266,103 @@ def loadTargetSignals(target_name: str, path: str = "target"):
     with open(model_metadata_pkl_path, "rb") as f:
         metadata_pkl = pickle.load(f)
 
-    print(f"✅ Target model logits, inmask and metadata loaded from: {target_dir}")
-    return target_logits, target_inmask, metadata, metadata_pkl
+    if target_logits is not None:
+        print(f"✅ Target logits loaded, shape: {target_logits.shape}")
+    if target_inmask is not None:
+        print(f"✅ Target inmask loaded, shape: {target_inmask.shape}")
+    if resc_logits is not None:
+        print(f"✅ Target resc_logits loaded, shape: {resc_logits.shape}")
+    if gtl_probs is not None:
+        print(f"✅ Target gtl_probs loaded, shape: {gtl_probs.shape}")
 
-def loadShadowModelSignals(target_name: str, path: str = "processed_shadow_models"):
-    """
-    Loads logits and in_mask arrays for all shadow models inside:
-        base_path / folder_name
-    
-    Returns:
-        shadow_logits: ndarray of shape (N, M)
-        shadow_inmasks: ndarray of shape (N, M)
-    """
-    shadow_dir = os.path.join(path, target_name)
+    print(f"loaded from: {target_dir}")
+    return target_logits, target_inmask, resc_logits, gtl_probs, metadata, metadata_pkl
 
+def loadShadowModelSignals(target_name: str, load_dict: dict = None, path: str = "processed_shadow_models"):
+    """
+    Loads signals for shadow models from the directory structure:
+        path/
+            logits/
+            in_masks/
+            rescaled_logits/
+            gtl_probabilities/
+            metadata/
+
+    Args:
+        target_name: Name of the group folder inside 'path'
+        load_dict: Dict specifying which components to load:
+            {
+                "logits": bool,
+                "resc_logits": bool,
+                "gtl_probs": bool,
+                "in_mask": bool,
+                "metadata_pkl": bool
+            }
+            If None => load EVERYTHING.
+
+    Returns (always 5 values):
+        sm_logits, sm_resc_logits, sm_gtl_probs, sm_in_masks, sm_metadata
+
+        If something is not loaded → returns False instead.
+    """
+
+    # Default: load everything
+    if load_dict is None:
+        load_dict = {
+            "logits": True,
+            "resc_logits": True,
+            "gtl_probs": True,
+            "in_mask": True,
+            "metadata_pkl": True
+        }
+
+    base_dir = os.path.join(path, target_name)
+    assert os.path.exists(base_dir), f"Base shadow path does not exist: {base_dir}"
+
+    # Storage lists for stacking
     logits_list = []
+    resc_logits_list = []
+    gtl_probs_list = []
     inmask_list = []
+    metadata_list = []
 
     index = 0
     while True:
-        logits_path = os.path.join(shadow_dir, f"shadow_logits_{index}.npy")
-        inmask_path = os.path.join(shadow_dir, f"in_mask_{index}.npy")
+        # Build all paths
+        paths = {
+            "logits":        os.path.join(base_dir, "logits",             f"shadow_logits_{index}.npy"),
+            "resc_logits":   os.path.join(base_dir, "rescaled_logits",    f"resc_logits_{index}.npy"),
+            "gtl_probs":     os.path.join(base_dir, "gtl_probabilities",  f"gtl_probs_{index}.npy"),
+            "in_mask":       os.path.join(base_dir, "in_masks",           f"in_mask_{index}.npy"),
+            "metadata_pkl":  os.path.join(base_dir, "metadata",           f"metadata_{index}.pkl")
+        }
 
-        # Stop when no more models exist
-        if not os.path.exists(logits_path) or not os.path.exists(inmask_path):
+        # Detect termination: if NONE of these files exist → stop
+        if not any(os.path.exists(p) for p in paths.values()):
             break
 
-        logits_list.append(np.load(logits_path))
-        inmask_list.append(np.load(inmask_path))
+        # Load requested components
+        if load_dict.get("logits", False) and os.path.exists(paths["logits"]):
+            logits_list.append(np.load(paths["logits"]))
+
+        if load_dict.get("resc_logits", False) and os.path.exists(paths["resc_logits"]):
+            resc_logits_list.append(np.load(paths["resc_logits"]))
+
+        if load_dict.get("gtl_probs", False) and os.path.exists(paths["gtl_probs"]):
+            gtl_probs_list.append(np.load(paths["gtl_probs"]))
+
+        if load_dict.get("in_mask", False) and os.path.exists(paths["in_mask"]):
+            inmask_list.append(np.load(paths["in_mask"]))
+
+        if load_dict.get("metadata_pkl", False) and os.path.exists(paths["metadata_pkl"]):
+            with open(paths["metadata_pkl"], "rb") as f:
+                metadata_list.append(pickle.load(f))
 
         index += 1
 
-    # Stack into (N, M)
-    shadow_logits_all = np.stack(logits_list, axis=1)
-    shadow_inmask_all = np.stack(inmask_list, axis=1)
+    print(f"✅ Loaded {index} shadow models.")
 
-    print(f"✅ Loaded {index} shadow models from: {shadow_dir}")
-    print(f"➡️ Logits shape: {shadow_logits_all.shape}")
-    print(f"➡️ Inmask shape: {shadow_inmask_all.shape}")
-
-    return shadow_logits_all, shadow_inmask_all
-
-def loadFbdStudy(study_name: str, metadata: bool = True, gtl: bool = True, logits: bool = True):
+def loadFbdStudy(study_name: str, metadata: bool = True, gtl: bool = True, logits: bool = True, start_index: int = 0):
     """
     Load FBD study output files from the study/<study_name>/trial_outputs directory.
     Files must follow the indexed naming scheme:
@@ -334,7 +392,7 @@ def loadFbdStudy(study_name: str, metadata: bool = True, gtl: bool = True, logit
     gtl_list = []
     logits_list = []
     
-    index = 0
+    index = start_index
 
     while True:
         loaded_any = False  # Detect if this index has any valid file
