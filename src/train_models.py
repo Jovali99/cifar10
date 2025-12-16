@@ -208,10 +208,12 @@ def train_shadow_model(train_cfg, train_dataset, test_dataset, train_indices, te
         
 
 def create_shadow_models_parallel(train_config, audit_config, gpu_ids, full_dataset, target_folder, train_missing: bool = False, missing_indices: list = []):
-    # Split the models among GPUs
     n_gpus = len(gpu_ids)
-    index_file = os.path.join(target_folder, "shadow_model_indices.npy")
-    # Round-robin assignment of indices
+    
+    path = os.path.join("processed_shadow_models", target_folder)
+    os.makedirs(path, exist_ok=True)
+
+    index_file = os.path.join(path, "shadow_model_indices.npy")
 
     # Create a list of balanced dataset_indices per shadow_model
     if not train_missing:

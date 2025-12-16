@@ -445,6 +445,9 @@ def plot_bootstrap_band(ax, x, y, label, color):
 
 def get_gtlprobs(logits, labels, temperature=1.0, select = None):
     select = np.arange(len(labels)) if select is None else select
+
+    if isinstance(labels, torch.Tensor):
+        labels = labels.cpu().numpy()
     assert len(select) == len(labels)
     assert logits.shape[0] > np.max(select)
     assert logits.shape[1] > np.max(labels)
