@@ -3,7 +3,7 @@ import torch
 import pickle
 import numpy as np
 
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CIFAR10, CIFAR100
 from torchvision import datasets
 from torchvision import transforms
 from torch import tensor, cat, save, load, optim, nn
@@ -55,8 +55,14 @@ def loadDataset(data_cfg):
     if(dataset_name == "cifar10"):
         trainset = CIFAR10(root=root, train=True, download=True, transform=transform)
         testset = CIFAR10(root=root, train=False, download=True, transform=transform)
+        print("⏩ Loading CIFAR-10")
     elif(dataset_name == "cinic10"):
         trainset, testset = load_cinic()
+        print("⏩ Loading CINIC-10")
+    if(dataset_name == "cifar100"):
+        trainset = CIFAR100(root=root, train=True, download=True, transform=transform)
+        testset = CIFAR100(root=root, train=False, download=True, transform=transform)
+        print("⏩ Loading CIFAR-100")
     else:
 
         raise ValueError(f"Unsupported dataset: {dataset_name}")
