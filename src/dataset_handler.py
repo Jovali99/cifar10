@@ -109,10 +109,10 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=No
 
         data = cat([train_data.clone().detach(), test_data.clone().detach()], dim=0)
         targets = cat([train_targets, test_targets], dim=0)
-        if(data_cfg["dataset"] == "cifar10"):
-            assert len(data) == 60000, "Population dataset should contain 60000 samples"
+        if(data_cfg["dataset"] == "cifar10" or data_cfg["dataset"] == "cifar100"):
+            assert len(data) == 60000, " CIFAR-10/100 Population dataset should contain 60000 samples"
         elif(data_cfg["dataset"] == "cinic10"):
-            assert len(data) == 270000, "Population dataset should contain 60000 samples"
+            assert len(data) == 270000, "CINIC-10 Population dataset should contain 270000 samples"
 
         dataset = CifarInputHandler.UserDataset(data, targets)
 
@@ -162,7 +162,10 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=No
     assert sample_x.shape == (3, 32, 32), f"Unexpected sample shape: {sample_x.shape}"
     assert not torch.isnan(sample_x).any(), "NaNs found in normalized data"
     assert not torch.isinf(sample_x).any(), "Infs found in normalized data"
-    assert 0.0 <= sample_y < 10, f"Target out of range: {sample_y}"
+    if(data_cfg["dataset"] == "cifar10" or data_cfg["dataset"] == "cinic10"):
+        assert 0.0 <= sample_y < 10, f"Target out of range: {sample_y}"
+    elif(data_cfg["dataset"] == "cifar100"):
+        assert 0.0 <= sample_y < 100, f"Target out of range: {sample_y}"
 
     print(f"✅ Dataset ready | Train: {len(train_dataset)} | Test: {len(test_dataset)}")
     return train_dataset, test_dataset, train_indices, test_indices
