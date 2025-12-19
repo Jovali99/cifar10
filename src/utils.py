@@ -24,72 +24,6 @@ def print_yaml(data, indent=0):
     else:
         print(f"{spacing}{data}")
 
-""" def bootstrap_sampling(K, M, shadow_logits, shadow_inmask, target_logits = None, target_inmask = None, replace = True, vec_mia_fun = lira_vectorized):
-    noneflag = False 
-    if target_logits is None:
-        assert target_inmask is None
-        noneflag = True
-    elif target_logits.ndim == 1:
-        assert target_inmask.ndim == 1
-        target_logits = target_logits.reshape([-1,1])
-        target_inmask = target_inmask.reshape([-1,1])
-    else:
-        assert target_logits.ndim == 2
-        assert target_inmask.ndim == 2
-    
-    no_models = shadow_logits.shape[1] 
-    ii_models = np.arange(no_models)
-    results = []
-    for m in range(M):
-        if noneflag:
-            i_target = np.random.randint(no_models)
-            target_logits, target_inmask = shadow_logits[:,[i_target]], shadow_inmask[:,[i_target]]
-            ii_remain = np.setdiff1d(ii_models,i_target)
-        else:
-            ii_remain = ii_models
-        ii_sample = np.random.choice(ii_remain, K, replace)
-        j = np.random.randint(target_logits.shape[1])
-        #print(j, target_logits.shape, target_inmask.shape)
-        score = vec_mia_fun(shadow_logits[:,ii_sample], shadow_inmask[:,ii_sample], target_logits[:,j])
-        mask = ~np.isnan(score)
-        #if not all(mask):
-        #    print("number of nan scores:", np.isnan(score).sum())
-        fpr, tpr, thresholds =  roc_curve(target_inmask[mask,j], score[mask])        
-        results.append((fpr, tpr))
-    return results """
-
-"""def interpolate_unique(fpr0, fpr, tpr, extrapolate=np.nan):
-    # Sort fpr and tpr together
-    sorted_indices = np.argsort(fpr)
-    x = fpr[sorted_indices]
-    y = tpr[sorted_indices]
-
-    # Remove left duplicates
-    filter_indices = np.append(x[:-1] != x[1:], True)
-    x = x[filter_indices]
-    y = y[filter_indices]
-
-    return np.interp(fpr0, x, y, left=extrapolate, right=extrapolate)"""
-
-def sigmoid_weigths(score: np.ndarray, centrality: float, temperature: float, epsilon: float = 1e-6) -> np.ndarray:
-    exp = np.exp((score-centrality)/(temperature+epsilon))
-    weight = 1.0/(1.0+exp)
-    return weight
-
-def calculate_logits(model, dataset, device, batch_size=128) -> np.ndarray:
-    model.eval()
-    logits_list = []
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-
-    with torch.no_grad():
-        for x, _ in tqdm(loader):
-            x = x.to(device)
-            out = model(x)      # logits
-            logits_list.append(out.cpu().numpy())
-
-    logits = np.concatenate(logits_list, axis=0)
-    return logits
-
 def percentile_score_normalization(scores: np.ndarray, percentile: int, eps: float = 1e-12) -> np.ndarray:
     """
     Normalize scores using percentile clipping.
@@ -145,6 +79,25 @@ def get_shadow_signals(shadow_logits, shadow_inmask, amount):
     inmask_sub = shadow_inmask[:, selected_indices]
     return logits_sub, inmask_sub
 
+def sigmoid_weigths(score: np.ndarray, centrality: float, temperature: float, epsilon: float = 1e-6) -> np.ndarray:
+    exp = np.exp((score-centrality)/(temperature+epsilon))
+    weight = 1.0/(1.0+exp)
+    return weight
+
+def calculate_logits(model, dataset, device, batch_size=128) -> np.ndarray:
+    model.eval()
+    logits_list = []
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    with torch.no_grad():
+        for x, _ in tqdm(loader):
+            x = x.to(device)
+            out = model(x)      # logits
+            logits_list.append(out.cpu().numpy())
+
+    logits = np.concatenate(logits_list, axis=0)
+    return logits
+
 def rescale_logits(logits, true_label):
     if logits.shape[1] == 1:
         def sigmoid(z):
@@ -163,6 +116,17 @@ def rescale_logits(logits, true_label):
 
     output_signals = np.log(y_true + 1e-45) - np.log(y_wrong + 1e-45)
     return output_signals
+
+def get_gtlprobs(logits, labels, temperature=1.0, select = None):
+    select = np.arange(len(labels)) if select is None else select
+
+    if isinstance(labels, torch.Tensor):
+        labels = labels.cpu().numpy()
+
+    assert len(select) == len(labels)
+    assert logits.shape[0] > np.max(select)
+    assert logits.shape[1] > np.max(labels)
+    return softmax_logits(logits, temperature)[select,labels]
 
 def calculate_logits_and_inmask(dataset, model, metadata, path, idx: int | None = None, save: bool = True):
     """
@@ -442,16 +406,6 @@ def plot_bootstrap_band(ax, x, y, label, color):
 
     ax.plot(xm, ym, color=color, label=label)
     ax.fill_between(xm, ylow, yhigh, color=color, alpha=0.2)
-
-def get_gtlprobs(logits, labels, temperature=1.0, select = None):
-    select = np.arange(len(labels)) if select is None else select
-
-    if isinstance(labels, torch.Tensor):
-        labels = labels.cpu().numpy()
-    assert len(select) == len(labels)
-    assert logits.shape[0] > np.max(select)
-    assert logits.shape[1] > np.max(labels)
-    return softmax_logits(logits, temperature)[select,labels]
 
 def softmax_logits(logits: np.ndarray, temp:float=1.0, dimension:int=-1) -> np.ndarray:
     """Rescale logits to (0, 1).

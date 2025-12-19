@@ -340,10 +340,29 @@ def loadShadowModelSignals(target_name: str, load_dict: dict = None, path: str =
     print(f"✅ Loaded up to index {expected_sm}")
     print(f"Missing indices: {missing_indices}")
 
-    sm_logits      = np.stack(logits_list, axis=1)      if load_dict["logits"]      else False
-    sm_resc_logits = np.stack(resc_logits_list, axis=1) if load_dict["resc_logits"] else False
-    sm_gtl_probs   = np.stack(gtl_probs_list, axis=1)   if load_dict["gtl_probs"]   else False
-    sm_in_masks    = np.stack(inmask_list, axis=1)      if load_dict["in_mask"]     else False
+    sm_logits = (
+        np.stack(logits_list, axis=1)
+        if load_dict.get("logits", False) and len(logits_list) > 0
+        else False
+    )
+
+    sm_resc_logits = (
+        np.stack(resc_logits_list, axis=1)
+        if load_dict.get("resc_logits", False) and len(resc_logits_list) > 0
+        else False
+    )
+
+    sm_gtl_probs = (
+        np.stack(gtl_probs_list, axis=1)
+        if load_dict.get("gtl_probs", False) and len(gtl_probs_list) > 0
+        else False
+    )
+
+    sm_in_masks = (
+        np.stack(inmask_list, axis=1)
+        if load_dict.get("in_mask", False) and len(inmask_list) > 0
+        else False
+    )
 
     sm_metadata = metadata_list if len(metadata_list) > 0 else False
 
