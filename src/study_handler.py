@@ -50,7 +50,7 @@ def objective(trial, config, device):
     momentum = trial.suggest_float("momentum", 0.8, 0.99)
     weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
-    T_max = trial.suggest_int("T_max", 20, 50)
+    T_max = trial.suggest_int("T_max", 15, config["study"]["epochs"])
 
     train_loader, val_loader = get_dataloaders(batch_size, train_dataset, test_dataset)
 
@@ -72,7 +72,7 @@ def objective(trial, config, device):
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max)
 
-    max_epochs = 50
+    max_epochs = config["study"]["epochs"]
     best_val_accuracy = 0.0
     for epoch in range(max_epochs):
         train_one_epoch(model, optimizer, train_loader, device, epoch, max_epochs)
