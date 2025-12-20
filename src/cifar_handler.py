@@ -5,6 +5,8 @@ import torch
 from torch import cuda, device, optim, no_grad
 from torch.utils.data import DataLoader, random_split, ConcatDataset
 from torch.optim.lr_scheduler import MultiStepLR
+import torchvision.transforms as T
+import random
 from tqdm import tqdm
 
 import sys, os
@@ -251,7 +253,7 @@ class CifarInputHandler(AbstractInputHandler):
         return EvalOutput(**output_dict)
 
     class UserDataset(AbstractInputHandler.UserDataset):
-        def __init__(self, data, targets, **kwargs):
+        def __init__(self, data, targets, augment: bool = False, **kwargs):
             """
             Args:
                 data (Tensor): Image data of shape (N, H, W, C) or (N, C, H, W)
@@ -265,6 +267,7 @@ class CifarInputHandler(AbstractInputHandler):
 
             self.data = data.float()  # Ensure float type
             self.targets = targets
+            self.augment = augment
 
             for key, value in kwargs.items():
                 setattr(self, key, value)
@@ -274,6 +277,8 @@ class CifarInputHandler(AbstractInputHandler):
                 self.mean = self.data.mean(dim=(0, 2, 3)).view(-1, 1, 1)
                 self.std = self.data.std(dim=(0, 2, 3)).view(-1, 1, 1)
 
+            self.augment_transform = T.RandomHorizontalFlip(p=0.5)
+
         def transform(self, x):
             """Normalize using stored mean and std."""
             return (x - self.mean) / self.std 
@@ -281,9 +286,14 @@ class CifarInputHandler(AbstractInputHandler):
         def __getitem__(self, index):
             x = self.data[index]
             y = self.targets[index]
+
+            # Horizontal flip
+            if self.augment:
+                x = self.augment_transform(x)
+
             x = self.transform(x)
+
             return x, y
 
         def __len__(self):
             return len(self.targets)
-

@@ -98,7 +98,7 @@ def splitDataset(dataset, train_frac, test_frac):
     train_idx, test_idx = train_test_split(indices, test_size=test_size, shuffle=True)
     return train_idx, test_idx
 
-def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=None):
+def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=None, augment=False):
     f_train = float(data_cfg["f_train"])
     f_test = float(data_cfg["f_test"]) 
 
@@ -154,8 +154,22 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=No
     file_path = os.path.join(dataset_root, dataset_name + ".pkl")
     saveDataset(dataset, file_path)
 
-    train_dataset = torch.utils.data.Subset(dataset, train_indices)
-    test_dataset = torch.utils.data.Subset(dataset, test_indices)
+    train_dataset = CifarInputHandler.UserDataset(
+        dataset.data[train_indices],
+        dataset.targets[train_indices],
+        augment=augment
+    )
+
+    test_dataset = CifarInputHandler.UserDataset(
+        dataset.data[test_indices],
+        dataset.targets[test_indices],
+        augment=False,
+        mean=train_dataset.mean,   # IMPORTANT: reuse train stats
+        std=train_dataset.std
+    )
+
+    #train_dataset = torch.utils.data.Subset(dataset, train_indices)
+    #test_dataset = torch.utils.data.Subset(dataset, test_indices)
 
     # --- Assertion checks ---
     sample_x, sample_y = train_dataset[0]
