@@ -50,8 +50,7 @@ def objective(trial, config, device):
     momentum = trial.suggest_float("momentum", 0.8, 0.99)
     weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
-    T_max = trial.suggest_int("T_max", 15, config["study"]["epochs"])
-
+    T_max = trial.suggest_int("T_max", 25, config["study"]["epochs"], step=5)
 
     if config["data"]["dataset"] == "cifar10" or config["data"]["dataset"] == "cinic10":
         n_classes = 10
