@@ -73,7 +73,7 @@ def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices
                                       train_indices = train_indices,
                                       test_indices = test_indices,
                                       dataset_name = cfg["data"]["dataset"])
-    metadata_pkl_path = os.path.join(cfg["run"]["log_dir"], "model_metadata.pkl")
+    metadata_pkl_path = os.path.join(save_dir, "model_metadata.pkl")
     with open(metadata_pkl_path, "wb") as f:
         pickle.dump(meta_data, f)
 

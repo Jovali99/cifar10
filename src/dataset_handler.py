@@ -160,8 +160,8 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=No
     # Creates the train set with the optional augmentations and then casts to a subset
     train_dataset = torch.utils.data.Subset(
         CifarInputHandler.UserDataset(
-            dataset.data,
-            dataset.targets,
+            data=dataset.data,
+            targets=dataset.targets,
             augment=augment,
             mean=dataset.mean,
             std=dataset.std
@@ -171,8 +171,8 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=No
 
     test_dataset = torch.utils.data.Subset(
         CifarInputHandler.UserDataset(
-            dataset.data,
-            dataset.targets,
+            data=dataset.data,
+            targets=dataset.targets,
             augment=False,
             mean=dataset.mean,
             std=dataset.std

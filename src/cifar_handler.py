@@ -303,3 +303,13 @@ class CifarInputHandler(AbstractInputHandler):
 
         def __len__(self):
             return len(self.targets)
+
+        def __setstate__(self, state):
+            self.__dict__.update(state)
+            if not hasattr(self, "augment"):
+                self.augment = False
+            if not hasattr(self, "augment_transforms"):
+                self.augment_transforms = T.Compose([
+                    T.RandomHorizontalFlip(p=0.5),
+                    T.RandomCrop(32, padding=4)
+                ])
