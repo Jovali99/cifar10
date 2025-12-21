@@ -313,3 +313,6 @@ class CifarInputHandler(AbstractInputHandler):
                     T.RandomHorizontalFlip(p=0.5),
                     T.RandomCrop(32, padding=4)
                 ])
+
+        def set_augment(self, augment: bool):
+            self.augment = augment

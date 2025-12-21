@@ -52,7 +52,6 @@ def objective(trial, config, device):
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
     T_max = trial.suggest_int("T_max", 15, config["study"]["epochs"])
 
-    train_loader, val_loader = get_dataloaders(batch_size, train_dataset, test_dataset)
 
     if config["data"]["dataset"] == "cifar10" or config["data"]["dataset"] == "cinic10":
         n_classes = 10
@@ -60,6 +59,11 @@ def objective(trial, config, device):
         n_classes = 100
     else:
         raise ValueError(f"Incorrect dataset {config['data']['dataset']}")
+
+    augment = config["data"]["augment"]
+    print(f"Augmentation during training: {augment}")
+
+    train_loader, val_loader = get_dataloaders(batch_size, train_dataset, test_dataset)
 
     if config["study"]["model"] == "resnet":
         model = torchvision.models.resnet18(num_classes=n_classes).to(device)
@@ -75,9 +79,16 @@ def objective(trial, config, device):
     max_epochs = config["study"]["epochs"]
     best_val_accuracy = 0.0
     for epoch in range(max_epochs):
+        if augment:
+            train_dataset.set_augment(True) # Enable for training
+
         train_one_epoch(model, optimizer, train_loader, device, epoch, max_epochs)
         scheduler.step()
+
+        if augment:
+            train_dataset.set_augment(False) # Disable for validation
         val_accuracy = evaluate(model, val_loader, device)
+
         print(f"Trial val accuracy: {val_accuracy}")
         trial.report(val_accuracy, epoch)
         if trial.should_prune():
@@ -132,6 +143,8 @@ def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_g
     # Calculate the weights
     weights = sigmoid_weigths(rmia_scores, centrality, temperature)
 
+    assert train_dataset.dataset is test_dataset.dataset, "train_dataset.dataset =/= test_dataset.dataset"
+
     lr = cfg["fbd_study"]["learning_rate"]
     weight_decay = cfg["fbd_study"]["weight_decay"]
     epochs = cfg["fbd_study"]["epochs"]
@@ -164,9 +177,6 @@ def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_g
     handler.trainStudyFbD(train_loader, model, criterion, optimizer, epochs, noise_std, scheduler)
     test_accuracy = handler.eval(test_loader, model, criterion).accuracy
 
-    # ----------------- GÖR DETTA I TRAIN_MODELS -----------------
-
-    assert train_dataset.dataset is test_dataset.dataset, "train_dataset.dataset =/= test_dataset.dataset"
     full_dataset = train_dataset.dataset
 
     model.to(device)
