@@ -33,7 +33,7 @@ def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices
         drop_rate = cfg["train"]["drop_rate"]
         model = WideResNet(depth=28, num_classes=num_classes, widen_factor=10, dropRate=drop_rate)
 
-    print(f"====== Training model: {cfg["train"]["model"]} on dataset: {cfg["data"]["dataset"]} ======")
+    print(f"====== Training model: {cfg['train']['model']} on dataset: {cfg['data']['dataset']} ======")
 
     """Parse training configuration"""
     lr = cfg["train"]["learning_rate"]

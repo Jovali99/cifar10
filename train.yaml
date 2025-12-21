@@ -1,5 +1,5 @@
 train: # Configuration for training
-  epochs: 25 # Integer number for indicating the epochs for training target model. For speedyresnet, it uses its own number of epochs.
+  epochs: 45 # Integer number for indicating the epochs for training target model. For speedyresnet, it uses its own number of epochs.
   batch_size: 128 # Integer number for indicating batch size for training the target model. For speedyresnet, it uses its own batch size.
   virtual_batch_size: 16 # When training with DP-SGD, virtual batch size can be used to lowers the VRAM requirement.
   optimizer: SGD # String which indicates the optimizer. We support Adam and SGD. For speedyresnet, it uses its own optimizer.
@@ -14,5 +14,5 @@ data: # Configuration for data
   dataset: cifar100 # String indicates the name of the dataset
   f_train: 0.5 # Float number from 0 to 1 indicating the fraction of the train dataset
   f_test: 0.5 # Float number from 0 to 1 indicating the size of the test set
-  augment: False
+  augment: True
   root: ./data # String about where to save the data.

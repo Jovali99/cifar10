@@ -102,9 +102,6 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=No
     f_train = float(data_cfg["f_train"])
     f_test = float(data_cfg["f_test"]) 
 
-    augment = data_cfg["augment"]
-    print(f"Augmented training: {augment}")
-
     if dataset is None:
         print("-- Processing dataset for training --")
 
@@ -117,7 +114,7 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=No
         elif(data_cfg["dataset"] == "cinic10"):
             assert len(data) == 270000, "CINIC-10 Population dataset should contain 270000 samples"
 
-        dataset = CifarInputHandler.UserDataset(data, targets, augment)
+        dataset = CifarInputHandler.UserDataset(data, targets, False)
 
     # ---------------------------------------------------------------------
     # CASE 1 — Custom train indices given 
@@ -157,19 +154,31 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=No
     file_path = os.path.join(dataset_root, dataset_name + ".pkl")
     saveDataset(dataset, file_path)
     
+    augment = data_cfg["augment"]
+    print(f"Augmented training: {augment}")
+
     # Creates the train set with the optional augmentations and then casts to a subset
-    if augment:
-        train_dataset = torch.utils.data.Subset(
-            CifarInputHandler.UserDataset(
-                dataset.data,
-                dataset.targets,
-                augment=augment
-            ), 
-            train_indices
-        )
-    else:
-        train_dataset = torch.utils.data.Subset(dataset, train_indices)
-    test_dataset = torch.utils.data.Subset(dataset, test_indices)
+    train_dataset = torch.utils.data.Subset(
+        CifarInputHandler.UserDataset(
+            dataset.data,
+            dataset.targets,
+            augment=augment,
+            mean=dataset.mean,
+            std=dataset.std
+        ), 
+        train_indices
+    )
+
+    test_dataset = torch.utils.data.Subset(
+        CifarInputHandler.UserDataset(
+            dataset.data,
+            dataset.targets,
+            augment=False,
+            mean=dataset.mean,
+            std=dataset.std
+        ), 
+        test_indices
+    )
 
     # --- Assertion checks ---
     sample_x, sample_y = train_dataset[0]
