@@ -53,16 +53,16 @@ def loadDataset(data_cfg):
 
     trainset, testset = None, None
     if(dataset_name == "cifar10"):
+        print("⏩ Loading CIFAR-10")
         trainset = CIFAR10(root=root, train=True, download=True, transform=transform)
         testset = CIFAR10(root=root, train=False, download=True, transform=transform)
-        print("⏩ Loading CIFAR-10")
     elif(dataset_name == "cinic10"):
-        trainset, testset = load_cinic()
         print("⏩ Loading CINIC-10")
-    if(dataset_name == "cifar100"):
+        trainset, testset = load_cinic()
+    elif(dataset_name == "cifar100"):
+        print("⏩ Loading CIFAR-100")
         trainset = CIFAR100(root=root, train=True, download=True, transform=transform)
         testset = CIFAR100(root=root, train=False, download=True, transform=transform)
-        print("⏩ Loading CIFAR-100")
     else:
 
         raise ValueError(f"Unsupported dataset: {dataset_name}")
@@ -98,9 +98,12 @@ def splitDataset(dataset, train_frac, test_frac):
     train_idx, test_idx = train_test_split(indices, test_size=test_size, shuffle=True)
     return train_idx, test_idx
 
-def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=None, augment=False):
+def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=None):
     f_train = float(data_cfg["f_train"])
     f_test = float(data_cfg["f_test"]) 
+
+    augment = data_cfg["augment"]
+    print(f"Augmented training: {augment}")
 
     if dataset is None:
         print("-- Processing dataset for training --")
@@ -114,7 +117,7 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=No
         elif(data_cfg["dataset"] == "cinic10"):
             assert len(data) == 270000, "CINIC-10 Population dataset should contain 270000 samples"
 
-        dataset = CifarInputHandler.UserDataset(data, targets)
+        dataset = CifarInputHandler.UserDataset(data, targets, augment)
 
     # ---------------------------------------------------------------------
     # CASE 1 — Custom train indices given 
@@ -153,23 +156,20 @@ def processDataset(data_cfg, trainset, testset, in_indices_mask=None, dataset=No
     dataset_root = data_cfg.get("root", data_cfg.get("data_dir"))
     file_path = os.path.join(dataset_root, dataset_name + ".pkl")
     saveDataset(dataset, file_path)
-
-    train_dataset = CifarInputHandler.UserDataset(
-        dataset.data[train_indices],
-        dataset.targets[train_indices],
-        augment=augment
-    )
-
-    test_dataset = CifarInputHandler.UserDataset(
-        dataset.data[test_indices],
-        dataset.targets[test_indices],
-        augment=False,
-        mean=train_dataset.mean,   # IMPORTANT: reuse train stats
-        std=train_dataset.std
-    )
-
-    #train_dataset = torch.utils.data.Subset(dataset, train_indices)
-    #test_dataset = torch.utils.data.Subset(dataset, test_indices)
+    
+    # Creates the train set with the optional augmentations and then casts to a subset
+    if augment:
+        train_dataset = torch.utils.data.Subset(
+            CifarInputHandler.UserDataset(
+                dataset.data,
+                dataset.targets,
+                augment=augment
+            ), 
+            train_indices
+        )
+    else:
+        train_dataset = torch.utils.data.Subset(dataset, train_indices)
+    test_dataset = torch.utils.data.Subset(dataset, test_indices)
 
     # --- Assertion checks ---
     sample_x, sample_y = train_dataset[0]

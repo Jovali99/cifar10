@@ -277,6 +277,9 @@ class CifarInputHandler(AbstractInputHandler):
                 self.mean = self.data.mean(dim=(0, 2, 3)).view(-1, 1, 1)
                 self.std = self.data.std(dim=(0, 2, 3)).view(-1, 1, 1)
 
+            if not hasattr(self, "augment"):
+                self.augment = False
+
             self.augment_transforms = T.Compose([
                 T.RandomHorizontalFlip(p=0.5),
                 T.RandomCrop(32, padding=4)

@@ -17,8 +17,7 @@ from src.utils import calculate_logits, rescale_logits, get_gtlprobs, calculate_
 from src.save_load import saveShadowModelSignals
 from src.dataset_handler import get_dataloaders, process_dataset_by_indices, build_balanced_dataset_indices
 
-def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices):
-    print("-- Training model ResNet18 on cifar10  --")
+def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices, save_dir):
     os.makedirs("target", exist_ok=True)
 
     if(cfg["data"]["dataset"] == "cifar10" or cfg["data"]["dataset"] == "cinic10"):
@@ -30,11 +29,11 @@ def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices
 
     if cfg["train"]["model"] == "resnet":
         model = ResNet18(num_classes=num_classes)
-        print("Training resnet")
     elif cfg["train"]["model"] == "wideresnet":
         drop_rate = cfg["train"]["drop_rate"]
         model = WideResNet(depth=28, num_classes=num_classes, widen_factor=10, dropRate=drop_rate)
-        print("Training wideresnet")
+
+    print(f"====== Training model: {cfg["train"]["model"]} on dataset: {cfg["data"]["dataset"]} ======")
 
     """Parse training configuration"""
     lr = cfg["train"]["learning_rate"]
@@ -62,7 +61,7 @@ def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices
     test_result = CifarInputHandler().eval(test_loader, model, criterion)
 
     model.to("cpu")
-    save(model.state_dict(), os.path.join(cfg["run"]["log_dir"], "target_model.pkl"))
+    save(model.state_dict(), os.path.join(save_dir, "target_model.pkl"))
     
     # Create and Save LeakPro metadata
     meta_data = LeakPro.make_mia_metadata(train_result = train_result,
