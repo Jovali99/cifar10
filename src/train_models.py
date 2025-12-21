@@ -50,6 +50,10 @@ def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max)
     else:
         scheduler = None
+    
+    augment = cfg["data"]["augment"]
+    if augment:
+        train_loader.dataset.dataset.augment = True
 
     train_result = CifarInputHandler().train(dataloader=train_loader,
                                              model=model,
@@ -57,6 +61,9 @@ def trainTargetModel(cfg, train_loader, test_loader, train_indices, test_indices
                                              optimizer=optimizer,
                                              epochs=epochs,
                                              scheduler=scheduler)
+
+    if augment:
+        train_loader.dataset.dataset.augment = False
 
     test_result = CifarInputHandler().eval(test_loader, model, criterion)
 
