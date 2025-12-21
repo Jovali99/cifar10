@@ -79,13 +79,13 @@ def objective(trial, config, device):
     best_val_accuracy = 0.0
     for epoch in range(max_epochs):
         if augment:
-            train_dataset.set_augment(True) # Enable for training
+            train_dataset.dataset.set_augment(True) # Enable for training
 
         train_one_epoch(model, optimizer, train_loader, device, epoch, max_epochs)
         scheduler.step()
 
         if augment:
-            train_dataset.set_augment(False) # Disable for validation
+            train_dataset.dataset.set_augment(False) # Disable for validation
         val_accuracy = evaluate(model, val_loader, device)
 
         print(f"Trial val accuracy: {val_accuracy}")
