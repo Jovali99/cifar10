@@ -243,6 +243,42 @@ def saveShadowModelSignals(identifier: int, logits: np.ndarray=None, in_mask: np
 
     print(f"✅ Saved shadow model signals at: {path}")
 
+def saveVisData(data: np.ndarray, title: str, study_name: str, path: str = "visualization_data"):
+    save_path = os.path.join(os.path.join("study", study_name), path)
+    os.makedirs(save_path, exist_ok=True)
+    f_path = os.path.join(save_path, title)
+    np.save(f_path, data)
+    return print(f"Visualization data: {title}, with shape: {data.shape}, has been saved to: {f_path}.")
+
+def loadVisData(study_name, path: str = "visualization_data"):
+    """
+    Load all visualization data stored under <study_name>/<path>.
+
+    Returns:
+        dict[str, np.ndarray]: {title: data}
+    """
+    base_path = os.path.join("study", os.path.join(study_name, path))
+
+    if not os.path.exists(base_path):
+        raise FileNotFoundError(f"Visualization path does not exist: {base_path}")
+
+    data_dict = {}
+
+    for fname in os.listdir(base_path):
+        if fname.endswith(".npy"):
+            title = os.path.splitext(fname)[0]
+            file_path = os.path.join(base_path, fname)
+
+            data = np.load(file_path, allow_pickle=True)
+            data_dict[title] = data
+
+            print(f"Loaded {title} with shape {data.shape}")
+
+    if len(data_dict) == 0:
+        print("⚠️ No visualization files found.")
+
+    return data_dict
+
 def loadTargetSignals(target_name: str, path: str = "target"):
     """ Loads the target logits, in_mask and metadata from input path """
 
