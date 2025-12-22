@@ -172,10 +172,21 @@ def fbd_objective(trial, cfg, rmia_scores, train_dataset, test_dataset, shadow_g
 
     train_loader, test_loader = get_weighted_dataloaders(batch_size, train_dataset, test_dataset, weights)
 
+    # ------------ TRAIN MODEL ------------ #
     handler = CifarInputHandler();
+
+    augment = cfg["data"]["augment"]
+    if augment:
+        train_loader.dataset.dataset.augment = True
+
     handler.trainStudyFbD(train_loader, model, criterion, optimizer, epochs, noise_std, scheduler)
+
+    if augment:
+        train_loader.dataset.dataset.augment = False
+
     test_accuracy = handler.eval(test_loader, model, criterion).accuracy
 
+    # ------------ SAVE RESULTS ------------ #
     full_dataset = train_dataset.dataset
 
     model.to(device)

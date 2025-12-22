@@ -184,8 +184,17 @@ def train_shadow_model(train_cfg, train_dataset, test_dataset, train_indices, te
     
     # ------------ TRAIN MODEL ------------ #
     handler = CifarInputHandler();
+
+    augment = train_cfg["data"]["augment"]
+    if augment:
+        train_loader.dataset.dataset.augment = True
+
     train_result = handler.train(train_loader, model, criterion, optimizer, epochs, scheduler, device)
     sm_model = train_result.model
+
+    if augment:
+        train_loader.dataset.dataset.augment = False
+
     test_result = handler.eval(test_loader, model, criterion)
     
     # ------------ SAVE RESULTS ------------ #
